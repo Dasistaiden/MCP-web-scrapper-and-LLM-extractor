@@ -20,40 +20,51 @@ A Model Context Protocol (MCP) server that enables Claude Desktop to perform adv
 ## 🚀 Installation
 
 ### 1. Clone the Repository
+
 ```bash
-git clone https://github.com/yourusername/mcp-webscraper.git
+git clone https://github.com/samirsaci/mcp-webscraper.git
 cd mcp-webscraper
 ```
 
 ### 2. Install uv Package Manager
+
 If you don't have uv installed:
-``` bash
+
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 3. Initialize the project
-``` bash
+
+```bash
 # Initialize the virtual environment
 uv init .
 ```
 
 ### 4. Install Dependencies
-``` bash
+
+```bash
+uv add "mcp[cli]"
+source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
 Do not forget to install playwright browser to scrape dynamic content
+
 ```bash
 uv run playwright install chromium
 ```
 
 ### 5. Test the Installation
+
 Run the test script to verify everything works using a website that loves to be scrapped `https://books.toscrape.com/`:
+
 ```
 uv run python test_local.py
 ```
 
 Expected Output:
+
 ```
 Static Scraping Success: True
 HTML length: 51294
@@ -76,7 +87,7 @@ First 3 pages discovered:
      URL: https://books.toscrape.com/index.html
      Links found: 73
      Depth: 1
-  3. Books | 
+  3. Books |
      Books to Scrape - Sandbox
      URL: https://books.toscrape.com/catalogue/category/books_1/index.html
      Links found: 73
@@ -89,13 +100,17 @@ Statistics:
 ```
 
 ## ⚙️ Claude Desktop Configuration
+
 For Windows Users with WSL
 
 1. Locate your Claude Desktop configuration file:
+
 ```
 File -> Settings -> Edit Config
 ```
+
 2. Add the WebScrappingServer configuration
+
 ```json
 {
   "mcpServers": {
@@ -112,12 +127,16 @@ File -> Settings -> Edit Config
   }
 }
 ```
+
 **Important**: Replace ~/path/to/mcp-webscraper with the actual path to your project folder in WSL.
 To find your WSL path:
+
 ```bash
 pwd
 ```
+
 ### 3. Restart Claude Desktop
+
 After updating the configuration:
 
 1. Completely quit Claude Desktop (not just close the window)
@@ -126,12 +145,17 @@ After updating the configuration:
 4. Click it to verify "WebScrapingServer" appears
 
 ### 🔧 Usage Examples
+
 Once configured, you can ask Claude to:
+
 #### Basic Scraping
+
 ```bash
 "Scrape the homepage of example.com and tell me what you find"
 ```
+
 #### Advanced SEO analysis
+
 ```bash
 Please help me to crawl my personal blog https://yourblog.com with a limit of 150 pages.
 I would like to understand how articles are referring to each other.
@@ -139,6 +163,7 @@ Can you help me to perform this type of analysis?
 ```
 
 ### 📁 Project Structure
+
 ```
 mcp-webscraper/
 ├── models/
@@ -153,6 +178,7 @@ mcp-webscraper/
 ```
 
 ### 🛠️ Available MCP Tools
+
 The server exposes these tools to Claude:
 
 - `scrape_url`: Get raw HTML from any webpage
@@ -164,43 +190,54 @@ The server exposes these tools to Claude:
 ## 🐛 Troubleshooting
 
 ### Server not appearing in Claude
-*If the server does not appear in Claude, try first to restart Claude Desktop by terminating its processus.`
+
+\*If the server does not appear in Claude, try first to restart Claude Desktop by terminating its processus.`
 
 If this does not work, try to
 
 1. Check the log file:
+
 ```
 cat scraping_server.log
 ```
+
 2. Verify the path in config matches your WSL path:
+
 ```
 pwd
 ```
+
 The output should match what you have in your config file.
 
 3. Test the server directly:
+
 ```bash
 uv run python scrapping.py
 ```
 
 ### Playwright issues
+
 If JavaScript scraping fails, try to reinstall the browser
+
 ```bash
 uv run playwright install chromium
 ```
 
 ### WSL-specific issues
+
 Ensure WSL2 is properly installed:
 
 Run this in Windows PowerShell opened as Administrator
+
 ```bash
 wsl --status
 ```
 
 ### 📄 License
+
 MIT License - feel free to use this in your own projects!
 
 ## About me 🤓
+
 Senior Supply Chain and Data Science consultant with international experience working on Logistics and Transportation operations.
 For consulting or advising on analytics and sustainable supply chain transformation, feel free to contact me via [Logigreen Consulting](https://logi-green.com) or [LinkedIn](https://linkedin.com/in/samir-saci)
-
