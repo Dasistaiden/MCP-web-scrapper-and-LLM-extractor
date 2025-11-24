@@ -10,6 +10,13 @@ A Model Context Protocol (MCP) server that enables Claude Desktop to perform adv
 - **Batch Operations**: Process multiple URLs efficiently
 - **Link Analysis**: Understand how pages connect and reference each other
 
+## 🎥 Watch the Tutorial
+
+See the full demo and step-by-step setup guide on YouTube:
+
+[![Tutorial + Code](https://www.samirsaci.com/content/images/2025/11/temp_2-3.png)](https://www.youtube.com/watch?v=6hHZtiQ3M3U)
+
+
 ## 📋 Prerequisites
 
 - Python 3.10 or higher
