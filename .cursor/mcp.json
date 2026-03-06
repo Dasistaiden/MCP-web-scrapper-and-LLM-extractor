@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+      "webscraper": {
+        "command": "uv",
+        "args": [
+          "run",
+          "--directory",
+          "C:/Users/Yi-TsenLin/Desktop/HTW/25WISE/Paris Project/Github/mcp-webscraper",
+          "python",
+          "scrapping.py"
+        ]
+      }
+    }
+  }

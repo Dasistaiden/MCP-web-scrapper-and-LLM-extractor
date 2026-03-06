@@ -26,9 +26,10 @@ scraping_server.log
 .env
 .env.local
 
-# uv specific
-uv.lock
-
 # Playwright
 playwright-report/
 test-results/
+
+# Generated output data (can be large — rebuild by running the pipeline)
+output/
+schools/

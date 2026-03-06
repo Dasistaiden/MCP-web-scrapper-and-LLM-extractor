@@ -1,6 +1,10 @@
 from mcp.server.fastmcp import FastMCP
+import json
 import logging
-from typing import Optional, Dict, List, Any
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Dict, List, Any, Union
 from pydantic import HttpUrl
 
 # Import the scraper and models
@@ -30,11 +34,33 @@ mcp = FastMCP("WebScraper")
 scraper = WebScraper()
 
 
+def _save_result(result: Union[Dict, List], save_path: str) -> str:
+    """Save scraping result as JSON to the specified path.
+    
+    If save_path is a directory, auto-generate a timestamped filename inside it.
+    Returns the final path where the file was saved.
+    """
+    path = Path(save_path)
+
+    if path.is_dir() or save_path.endswith(("/", "\\")):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = path / f"scrape_{timestamp}.json"
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    logger.info(f"Result saved to: {path}")
+    return str(path)
+
+
 @mcp.tool()
 def scrape_url(
     url: str,
     javascript: bool = False,
-    wait_seconds: int = 3
+    wait_seconds: int = 3,
+    save_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Scrape a webpage and return its HTML content.
@@ -43,6 +69,8 @@ def scrape_url(
         url: The webpage URL to scrape
         javascript: Set to True for JavaScript-rendered sites (slower but handles dynamic content)
         wait_seconds: How long to wait for JavaScript to load (only used when javascript=True)
+        save_path: Optional file path to save the result as JSON (e.g. "C:/Users/me/Desktop/result.json").
+                   If a directory is given, a timestamped filename is generated automatically.
     
     Returns:
         Dictionary with html content, status code, and load time
@@ -63,21 +91,27 @@ def scrape_url(
         # Return simplified response
         if response.error:
             logger.error(f"Scraping failed: {response.error}")
-            return {
+            result = {
                 "success": False,
                 "error": response.error,
                 "url": url
             }
-        
-        logger.info(f"Successfully scraped {url} in {response.load_time:.2f}s")
-        return {
-            "success": True,
-            "url": url,
-            "html": response.html,
-            "status_code": response.status_code,
-            "load_time": response.load_time,
-            "method": response.method.value
-        }
+        else:
+            logger.info(f"Successfully scraped {url} in {response.load_time:.2f}s")
+            result = {
+                "success": True,
+                "url": url,
+                "html": response.html,
+                "status_code": response.status_code,
+                "load_time": response.load_time,
+                "method": response.method.value
+            }
+
+        if save_path:
+            saved_to = _save_result(result, save_path)
+            result["saved_to"] = saved_to
+
+        return result
         
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
@@ -93,7 +127,8 @@ def extract_data(
     url: str,
     css_selectors: List[str],
     attributes: Optional[List[str]] = None,
-    javascript: bool = False
+    javascript: bool = False,
+    save_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Scrape a webpage and extract specific data using CSS selectors.
@@ -104,6 +139,8 @@ def extract_data(
         attributes: List of attributes to extract for each selector (e.g., ["text", "href", "text"])
                    If not provided, defaults to "text" for all selectors
         javascript: Set to True for JavaScript-rendered sites
+        save_path: Optional file path to save the result as JSON (e.g. "C:/Users/me/Desktop/result.json").
+                   If a directory is given, a timestamped filename is generated automatically.
     
     Returns:
         Dictionary with extracted data for each selector
@@ -161,12 +198,18 @@ def extract_data(
             data = extract_response.extracted_data.get(key, [])
             results[selector] = data
         
-        return {
+        result = {
             "success": True,
             "url": url,
             "data": results,
             "status_code": response.status_code
         }
+
+        if save_path:
+            saved_to = _save_result(result, save_path)
+            result["saved_to"] = saved_to
+
+        return result
         
     except Exception as e:
         logger.error(f"Extraction error: {str(e)}")
@@ -182,7 +225,8 @@ def extract_first(
     url: str,
     css_selector: str,
     attribute: str = "text",
-    javascript: bool = False
+    javascript: bool = False,
+    save_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Extract the first matching element from a webpage.
@@ -193,6 +237,8 @@ def extract_first(
         css_selector: CSS selector for the element (e.g., "h1", "title", "meta[name='description']")
         attribute: What to extract - "text" for content, or attribute name like "href", "content", "src"
         javascript: Set to True for JavaScript-rendered sites
+        save_path: Optional file path to save the result as JSON (e.g. "C:/Users/me/Desktop/result.json").
+                   If a directory is given, a timestamped filename is generated automatically.
     
     Returns:
         Dictionary with the extracted value
@@ -233,7 +279,7 @@ def extract_first(
         extract_response = scraper.extract_elements(extract_request)
         value = extract_response.extracted_data.get("selector_0")
         
-        return {
+        result = {
             "success": True,
             "url": url,
             "selector": css_selector,
@@ -241,6 +287,12 @@ def extract_first(
             "value": value,
             "found": value is not None
         }
+
+        if save_path:
+            saved_to = _save_result(result, save_path)
+            result["saved_to"] = saved_to
+
+        return result
         
     except Exception as e:
         logger.error(f"Error extracting first: {str(e)}")
@@ -254,7 +306,8 @@ def extract_first(
 @mcp.tool()
 def batch_scrape(
     urls: List[str],
-    javascript: bool = False
+    javascript: bool = False,
+    save_path: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Scrape multiple URLs efficiently.
@@ -262,6 +315,8 @@ def batch_scrape(
     Args:
         urls: List of URLs to scrape
         javascript: Set to True if the sites need JavaScript rendering
+        save_path: Optional file path to save all results as a JSON array (e.g. "C:/Users/me/Desktop/batch.json").
+                   If a directory is given, a timestamped filename is generated automatically.
     
     Returns:
         List of scraping results for each URL
@@ -273,13 +328,15 @@ def batch_scrape(
         logger.info(f"Batch scraping {i}/{total}: {url}")
         
         result = scrape_url(url, javascript=javascript)
-        # Add index for tracking
         result["index"] = i - 1
         results.append(result)
     
     successful = sum(1 for r in results if r.get("success"))
     logger.info(f"Batch complete: {successful}/{total} successful")
-    
+
+    if save_path:
+        _save_result(results, save_path)
+
     return results
 
 @mcp.tool()
@@ -287,7 +344,8 @@ def crawl_website(
     start_url: str,
     max_pages: int = 50,
     max_depth: int = 3,
-    same_domain_only: bool = True
+    same_domain_only: bool = True,
+    save_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Crawl a website to discover its structure and pages.
@@ -297,17 +355,25 @@ def crawl_website(
         max_pages: Maximum pages to crawl (default 50)
         max_depth: Maximum link depth (default 3)
         same_domain_only: Stay on same domain (default True)
+        save_path: Optional file path to save the site map as JSON (e.g. "C:/Users/me/Desktop/sitemap.json").
+                   If a directory is given, a timestamped filename is generated automatically.
     
     Returns:
         Site map with discovered pages and statistics
     """
-    return scraper.crawl(
+    result = scraper.crawl(
         start_url=start_url,
         max_pages=max_pages,
         max_depth=max_depth,
         same_domain_only=same_domain_only,
         delay_seconds=0.5  # Delay between requests to avoid overloading servers (you can adjust this if you want)
     )
+
+    if save_path:
+        saved_to = _save_result(result, save_path)
+        result["saved_to"] = saved_to
+
+    return result
 
 
 # Resource for help/documentation
