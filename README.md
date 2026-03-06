@@ -1,250 +1,279 @@
-# MCP Web Scraper for Claude Desktop
+# MCP Web Scraper — Higher Education Intelligence Pipeline
 
-A Model Context Protocol (MCP) server that enables Claude Desktop to perform advanced web scraping and crawling operations. Extract structured data, analyze website architectures, and discover content relationships - all through natural conversation with Claude.
+A two-stage pipeline for collecting structured intelligence on higher education institutions:
 
-## 🎯 Features
+1. **Scrape** — crawl institution websites via MCP tools (Cursor AI) or a standalone script
+2. **Extract** — send raw content to an LLM (Ollama) and receive validated, structured JSON profiles
 
-- **Static & Dynamic Scraping**: Handle both regular HTML and JavaScript-rendered pages
-- **Website Crawling**: Discover and map entire website structures
-- **Data Extraction**: Extract specific elements using CSS selectors
-- **Batch Operations**: Process multiple URLs efficiently
-- **Link Analysis**: Understand how pages connect and reference each other
+Built on top of [samirsaci/mcp-webscraper](https://github.com/samirsaci/mcp-webscraper).
 
-## 🎥 Watch the Tutorial
+---
 
-See the full demo and step-by-step setup guide on YouTube:
+## What it does
 
-[![Tutorial + Code](https://www.samirsaci.com/content/images/2025/11/temp_2-3.png)](https://www.youtube.com/watch?v=6hHZtiQ3M3U)
+Given a university or conservatory website, the pipeline produces a structured `SchoolProfile` containing:
 
+- Basic details (name, address, phone, email, type, year founded)
+- Key contacts (President, Rector, Dean, International Office — name, title, email)
+- Academic departments and subjects
+- Degree programs (level, duration, language, tuition fees, entry requirements)
 
-## 📋 Prerequisites
+---
 
-- Python 3.10 or higher
-- WSL2 with Ubuntu (for Windows users)
-- Claude Desktop application
-- `uv` package manager
+## Architecture
 
-## 🚀 Installation
+```
+┌─────────────────────────────────────────────────────────────┐
+│  STAGE 1 — SCRAPING                                         │
+│                                                             │
+│  Option A: Cursor AI  ──►  scrapping.py (MCP server)        │
+│  Option B: CLI        ──►  run_scraper.py                   │
+│                                │                            │
+│                                ▼                            │
+│                    output/sites/<domain>_<date>.json        │
+└─────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STAGE 2 — EXTRACTION                                       │
+│                                                             │
+│  run_extractor.py  ──►  extractor.py  ──►  Ollama LLM       │
+│                                │                            │
+│                                ▼                            │
+│                    output/structured/<domain>.json          │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### 1. Clone the Repository
+---
+
+## Project Structure
+
+```
+mcp-webscraper/
+├── models/
+│   └── scraping_models.py      # Pydantic request/response models
+├── utils/
+│   └── web_scraper.py          # Core WebScraper class (static + JS + PDF)
+├── scrapping.py                # MCP server — exposes tools to Cursor AI
+├── run_scraper.py              # Standalone scraper CLI (no AI needed)
+├── extractor.py                # LLM extraction logic (Ollama)
+├── run_extractor.py            # Runner for the extractor (configure here)
+├── schema.py                   # SchoolProfile schema + crawl URL hints
+├── pyproject.toml              # Dependencies (managed by uv)
+├── .env.example                # API key template
+└── output/
+    ├── sites/                  # Raw crawl results (one JSON per domain)
+    ├── pages/                  # Individual page results
+    └── structured/             # Final LLM-extracted profiles
+```
+
+---
+
+## Prerequisites
+
+- Python 3.10+
+- [uv](https://astral.sh/uv) package manager
+- [Cursor](https://cursor.sh) (for MCP-based usage)
+- [Ollama](https://ollama.com) (local) **or** an Ollama Cloud API key (for extraction)
+
+---
+
+## Installation
+
+### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/samirsaci/mcp-webscraper.git
+git clone https://github.com/your-username/mcp-webscraper.git
 cd mcp-webscraper
+uv sync
 ```
 
-### 2. Install uv Package Manager
-
-If you don't have uv installed:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-### 3. Initialize the project
-
-```bash
-# Initialize the virtual environment
-uv init .
-```
-
-### 4. Install Dependencies
-
-```bash
-uv add "mcp[cli]"
-source .venv/bin/activate
-uv pip install -r requirements.txt
-```
-
-Do not forget to install playwright browser to scrape dynamic content
+### 2. Install Playwright browser (for JavaScript-rendered sites)
 
 ```bash
 uv run playwright install chromium
 ```
 
-### 5. Test the Installation
+### 3. Set up environment variables
 
-Run the test script to verify everything works using a website that loves to be scrapped `https://books.toscrape.com/`:
-
-```
-uv run python test_local.py
-```
-
-Expected Output:
-
-```
-Static Scraping Success: True
-HTML length: 51294
----------
-Dynamic Scraping Success: True
-HTML length: 51004
----------
-Testing Crawler...
-Crawler Success: True
-Pages crawled: 5
-Pages discovered: 437
-Failed URLs: 0
-
-First 3 pages discovered:
-  1. All products | Books to Scrape - Sandbox
-     URL: https://books.toscrape.com/
-     Links found: 73
-     Depth: 0
-  2. All products | Books to Scrape - Sandbox
-     URL: https://books.toscrape.com/index.html
-     Links found: 73
-     Depth: 1
-  3. Books |
-     Books to Scrape - Sandbox
-     URL: https://books.toscrape.com/catalogue/category/books_1/index.html
-     Links found: 73
-     Depth: 1
-
-Statistics:
-  Total unique links: 104
-  Max depth reached: 1
-  Avg load time: 0.21s
+```bash
+cp .env.example .env
+# Edit .env and add your OLLAMA_API_KEY (only needed for Ollama Cloud)
 ```
 
-## ⚙️ Claude Desktop Configuration
+---
 
-For Windows Users with WSL
+## Stage 1 — Scraping
 
-1. Locate your Claude Desktop configuration file:
+### Option A: Via Cursor MCP (recommended)
 
-```
-File -> Settings -> Edit Config
-```
-
-2. Add the WebScrappingServer configuration
+Add the MCP server to your Cursor settings (`Settings > MCP`):
 
 ```json
 {
   "mcpServers": {
     "WebScrapingServer": {
-      "command": "wsl",
+      "command": "uv",
       "args": [
-        "-d",
-        "Ubuntu",
-        "bash",
-        "-lc",
-        "cd ~/path/to/mcp-webscraper && uv run --with mcp[cli] mcp run scrapping.py"
+        "run",
+        "--with", "mcp[cli]",
+        "mcp",
+        "run",
+        "C:/path/to/mcp-webscraper/scrapping.py"
       ]
     }
   }
 }
 ```
 
-**Important**: Replace ~/path/to/mcp-webscraper with the actual path to your project folder in WSL.
-To find your WSL path:
+Then ask Cursor AI naturally:
+
+```
+"Crawl https://www.example-university.edu — I need all pages related to
+courses, staff, fees, and contact information."
+```
+
+Cursor AI will decide which MCP tools to call and in what order.
+
+#### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `scrape_url` | Fetch raw HTML from a single URL |
+| `extract_data` | Extract elements by CSS selector |
+| `extract_first` | Get the first matching element |
+| `batch_scrape` | Scrape multiple URLs at once |
+| `crawl_website` | Discover and crawl an entire site |
+
+### Option B: Standalone script
+
+Edit the `CONFIGURATION` block at the top of `run_scraper.py`, then run:
 
 ```bash
-pwd
+uv run python run_scraper.py
 ```
 
-### 3. Restart Claude Desktop
+Key settings:
 
-After updating the configuration:
+```python
+START_URL   = "https://www.example-university.edu"
+MAX_PAGES   = 100
+MAX_DEPTH   = 4
+OUTPUT_DIR  = "output/sites"
+```
 
-1. Completely quit Claude Desktop (not just close the window)
-2. Start Claude Desktop again
-3. Look for the 🔌 icon in the text input area
-4. Click it to verify "WebScrapingServer" appears
+Output: `output/sites/<domain>_<YYYYMMDD>.json`
 
-### 🔧 Usage Examples
+---
 
-Once configured, you can ask Claude to:
+## Stage 2 — LLM Extraction
 
-#### Basic Scraping
+Edit the `CONFIGURATION` block in `run_extractor.py`:
+
+```python
+# Ollama Cloud (recommended — fast, large model)
+BASE_URL       = "https://api.ollama.com"
+MODEL          = "qwen3-coder:480b-cloud"
+OLLAMA_API_KEY = ""   # loaded from .env automatically
+
+# Local Ollama (free, no key, slower)
+# BASE_URL = "http://localhost:11434"
+# MODEL    = "qwen2.5:7b"
+```
+
+Then run:
 
 ```bash
-"Scrape the homepage of example.com and tell me what you find"
+uv run python run_extractor.py
 ```
 
-#### Advanced SEO analysis
+The extractor will:
+1. Read all JSONs from `output/sites/`
+2. Prioritize high-value pages (course, staff, fee pages) within the LLM context budget
+3. Send a structured prompt to Ollama
+4. Validate the response against `SchoolProfile` in `schema.py`
+5. Save to `output/structured/<domain>.json`
+
+### Local Ollama setup
 
 ```bash
-Please help me to crawl my personal blog https://yourblog.com with a limit of 150 pages.
-I would like to understand how articles are referring to each other.
-Can you help me to perform this type of analysis?
+# Install Ollama: https://ollama.com
+ollama pull qwen2.5:7b    # ~4.7 GB, recommended
+ollama pull phi3.5        # ~2.2 GB, fastest
 ```
 
-### 📁 Project Structure
+---
 
-```
-mcp-webscraper/
-├── models/
-│   └── scraping_models.py      # Pydantic models for data validation
-├── utils/
-│   └── web_scraper.py          # Core WebScraper class
-├── scrapping.py                 # MCP server implementation
-├── test_local.py                # Local testing script
-├── requirements.txt             # Python dependencies
-├── README.md                    # This file
-└── scraping_server.log          # Server logs (created at runtime)
-```
+## Customising the Schema
 
-### 🛠️ Available MCP Tools
+All extracted fields are defined in `schema.py`. Editing `SchoolProfile` automatically updates:
+- The LLM prompt template (`EXTRACTION_TEMPLATE`)
+- Output validation
+- URL crawl hints (`FIELD_URL_HINTS`) — controls which pages `run_scraper.py` prioritises
 
-The server exposes these tools to Claude:
+---
 
-- `scrape_url`: Get raw HTML from any webpage
-- `extract_data`: Extract multiple elements using CSS selectors
-- `extract_first`: Get a single element from a page
-- `batch_scrape`: Process multiple URLs
-- `crawl_website`: Discover and map website structure
+## Output Format
 
-## 🐛 Troubleshooting
+`output/structured/<domain>.json` example:
 
-### Server not appearing in Claude
-
-\*If the server does not appear in Claude, try first to restart Claude Desktop by terminating its processus.`
-
-If this does not work, try to
-
-1. Check the log file:
-
-```
-cat scraping_server.log
-```
-
-2. Verify the path in config matches your WSL path:
-
-```
-pwd
+```json
+{
+  "domain": "www.example-university.edu",
+  "source_url": "https://www.example-university.edu",
+  "extracted_at": "2026-03-06T14:00:00",
+  "extraction_model": "qwen3-coder:480b-cloud",
+  "basic_details": {
+    "name": "Example University",
+    "address": "123 University Ave, City, Country",
+    "phone": "+1 234 567 8900",
+    "email": "info@example-university.edu",
+    "institution_type": "public",
+    "year_founded": 1905,
+    "website": "https://www.example-university.edu"
+  },
+  "key_contacts": [
+    {
+      "name": "Jane Smith",
+      "title": "President",
+      "email": "president@example-university.edu",
+      "verification_status": "unverified"
+    }
+  ],
+  "departments": [...],
+  "degree_programs": [...]
+}
 ```
 
-The output should match what you have in your config file.
+---
 
-3. Test the server directly:
+## Troubleshooting
 
-```bash
-uv run python scrapping.py
-```
+**MCP server not appearing in Cursor**
 
-### Playwright issues
+Restart Cursor after editing MCP settings. Check `scraping_server.log` for errors.
 
-If JavaScript scraping fails, try to reinstall the browser
+**Playwright / JavaScript scraping fails**
 
 ```bash
 uv run playwright install chromium
 ```
 
-### WSL-specific issues
+**Ollama Cloud: API key error**
 
-Ensure WSL2 is properly installed:
+Ensure `OLLAMA_API_KEY` is set in `.env` or in the `CONFIGURATION` block of `run_extractor.py`.
 
-Run this in Windows PowerShell opened as Administrator
+**Local Ollama not reachable**
 
 ```bash
-wsl --status
+# Check Ollama is running
+ollama list
+# Start if needed
+ollama serve
 ```
 
-### 📄 License
+---
 
-MIT License - feel free to use this in your own projects!
+## License
 
-## About me 🤓
-
-Senior Supply Chain and Data Science consultant with international experience working on Logistics and Transportation operations.
-For consulting or advising on analytics and sustainable supply chain transformation, feel free to contact me via [Logigreen Consulting](https://logi-green.com) or [LinkedIn](https://linkedin.com/in/samir-saci)
+MIT License — based on [samirsaci/mcp-webscraper](https://github.com/samirsaci/mcp-webscraper).
