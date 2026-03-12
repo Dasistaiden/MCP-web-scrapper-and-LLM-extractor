@@ -18,7 +18,7 @@ from typing import Optional
 import requests
 from pydantic import ValidationError
 
-from schema import EXTRACTION_TEMPLATE, SchoolProfile
+from schema import EXTRACTION_TEMPLATE, FIELD_URL_HINTS, SchoolProfile
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,23 @@ MAX_CONTENT_CHARS_CLOUD = 120_000
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Keyword sets derived from schema.py — no manual maintenance needed
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Score 3 (highest): degree/division pages → hold the most unique structured data
+_SCORE3_SECTIONS = {"degree_programs", "divisions"}
+_SCORE3_KEYWORDS: frozenset[str] = frozenset(
+    kw for section in _SCORE3_SECTIONS for kw in FIELD_URL_HINTS.get(section, [])
+)
+
+# Score 2: org basics, contact, academic, tuition, key contacts
+_SCORE2_SECTIONS = {"org_basics", "contact", "academic", "tuition", "key_contacts"}
+_SCORE2_KEYWORDS: frozenset[str] = frozenset(
+    kw for section in _SCORE2_SECTIONS for kw in FIELD_URL_HINTS.get(section, [])
+) - _SCORE3_KEYWORDS  # avoid overlap: score 3 wins
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Shared prompt builder
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -38,33 +55,25 @@ def _score_page(url: str) -> int:
     Higher score = higher priority. Pages with relevant keywords go first.
     Returns -1 to skip entirely (images / unextractable binaries).
 
-    PDFs are NOT auto-skipped here: if run_scraper.py successfully extracted
-    text from a PDF, it will have non-empty full_text and should compete for
-    the LLM budget just like any other page.
+    Keyword sets are auto-derived from FIELD_URL_HINTS in schema.py —
+    no manual keyword lists to maintain here.
+
+    PDFs are NOT auto-skipped: if run_scraper.py extracted text from a PDF,
+    it competes for the LLM budget like any other page.
     """
     url_lower = url.lower()
 
-    # Skip image and other binary formats that are never text-extractable
-    _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
-                   ".mp3", ".mp4", ".zip", ".exe")
-    if any(url_lower.endswith(ext) for ext in _IMAGE_EXTS):
+    _BINARY_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
+                    ".mp3", ".mp4", ".zip", ".exe")
+    if any(url_lower.endswith(ext) for ext in _BINARY_EXTS):
         return -1
 
-    # Highest priority: course/program pages (web or PDF)
-    if any(k in url_lower for k in ("course", "program", "degree", "bachelor", "master",
-                                     "postgrad", "undergrad", "study", "department",
-                                     "faculty", "school-of", "contemporary", "classical",
-                                     "music-theatre", "dance", "composition",
-                                     "handbook", "prospectus", "catalog", "syllabus")):
+    if any(k in url_lower for k in _SCORE3_KEYWORDS):
         return 3
 
-    # High priority: contact/staff/about/fee pages (web or PDF)
-    if any(k in url_lower for k in ("people", "staff", "contact", "about", "team",
-                                     "rector", "president", "international",
-                                     "fee", "fees", "tuition", "cost")):
+    if any(k in url_lower for k in _SCORE2_KEYWORDS):
         return 2
 
-    # Normal priority
     return 1
 
 
@@ -131,13 +140,19 @@ def _build_prompt(site_data: dict, max_chars: int = MAX_CONTENT_CHARS_LOCAL) -> 
 
 WEBSITE DOMAIN: {domain}
 
-INSTRUCTIONS:
-- Extract only information that is explicitly stated.
-- Use null for any field that is missing or unclear.
-- Include all key contacts mentioned by name (President, Rector, Dean, International Office head, senior staff).
-- List every academic department and the subjects they teach.
-- List every degree program with its level (Bachelor/Master/Doctorate/Certificate/Diploma).
-- Return ONLY a valid JSON object matching the template. No explanation, no markdown.
+PRIORITY INSTRUCTIONS:
+- REQUIRED fields: actively seek and extract these; they must be filled if the information exists anywhere on the site.
+- IMPORTANT fields: extract when clearly and explicitly stated.
+- NICE-TO-HAVE fields: extract only if the value is directly visible; do not infer.
+- SUPPLEMENTAL fields: skip if not immediately obvious.
+- Use null for any field that is missing, ambiguous, or cannot be determined with confidence.
+
+EXTRACTION RULES:
+- Extract only information that is explicitly stated on the site.
+- For key_contacts: include all named individuals with titles (President, Rector, Dean, International Relations Officer, senior administrative staff).
+- For divisions: list every faculty, school, department, institute, or centre mentioned.
+- For degree_programs: list every credential with its level (Bachelor / Master / Doctorate / Certificate / Diploma).
+- Return ONLY a valid JSON object matching the template below. No explanation, no markdown, no extra keys.
 
 OUTPUT TEMPLATE:
 {template_json}
