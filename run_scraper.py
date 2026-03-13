@@ -78,8 +78,8 @@ logger = logging.getLogger(__name__)
 from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
-from models.scraping_models import ElementSelector, ExtractRequest, ScrapingRequest
-from utils.web_scraper import WebScraper
+from MCP_server.models.scraping_models import ElementSelector, ExtractRequest, ScrapingRequest
+from MCP_server.utils.web_scraper import WebScraper
 from schema import FIELD_URL_HINTS, url_matches_schema
 
 # File extensions that are never useful to scrape as web pages

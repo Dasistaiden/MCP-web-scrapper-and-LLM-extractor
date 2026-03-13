@@ -1,13 +1,13 @@
 {
     "mcpServers": {
-      "webscraper": {
+      "whed-tools": {
         "command": "uv",
         "args": [
           "run",
           "--directory",
           "C:/Users/Yi-TsenLin/Desktop/HTW/25WISE/Paris Project/Github/mcp-webscraper",
           "python",
-          "scrapping.py"
+          "MCP_server/server.py"
         ]
       }
     }

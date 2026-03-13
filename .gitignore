@@ -19,6 +19,7 @@ env/
 .DS_Store
 
 # Project-specific files
+docs/
 scraping_server.log
 *.log
 

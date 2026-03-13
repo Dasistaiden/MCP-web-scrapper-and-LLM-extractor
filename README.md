@@ -1,47 +1,41 @@
-# MCP Web Scraper — Higher Education Intelligence Pipeline
+# WHED Tools — Higher Education Intelligence Pipeline
 
-A two-stage pipeline for collecting structured intelligence on higher education institutions:
+An MCP-native pipeline for collecting structured intelligence on higher education institutions, aligned with the IAU World Higher Education Database (WHED) schema.
 
-1. **Scrape** — crawl institution websites via MCP tools (Cursor AI) or a standalone script
-2. **Extract** — send raw content to an LLM (Ollama) and receive validated, structured JSON profiles
+**Scrape → Extract → Validate → Save** — the Host LLM performs extraction directly using MCP tools. No external LLM required.
 
-Built on top of [samirsaci/mcp-webscraper](https://github.com/samirsaci/mcp-webscraper).
+Built on [samirsaci/mcp-webscraper](https://github.com/samirsaci/mcp-webscraper).
 
 ---
 
-## What it does
+## Overview
 
-Given a university or conservatory website, the pipeline produces a structured `SchoolProfile` containing:
-
-- Basic details (name, address, phone, email, type, year founded)
-- Key contacts (President, Rector, Dean, International Office — name, title, email)
-- Academic departments and subjects
-- Degree programs (level, duration, language, tuition fees, entry requirements)
+| Step | How |
+|------|-----|
+| **Scrape** | MCP `crawl_website` or standalone `run_scraper.py` — schema-driven crawl, PDF extraction |
+| **Extract** | Host LLM reads scraped content, uses `get_extraction_schema` + `get_db_context` |
+| **Validate** | `validate_profile` — Pydantic schema + WHED DB picklist checks |
+| **Save** | `save_profile` — write to `output/structured/` |
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  STAGE 1 — SCRAPING                                         │
-│                                                             │
-│  Option A: Cursor AI  ──►  scrapping.py (MCP server)        │
-│  Option B: CLI        ──►  run_scraper.py                   │
-│                                │                            │
-│                                ▼                            │
-│                    output/sites/<domain>_<date>.json        │
-└─────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────┐
-│  STAGE 2 — EXTRACTION                                       │
-│                                                             │
-│  run_extractor.py  ──►  extractor.py  ──►  Ollama LLM       │
-│                                │                            │
-│                                ▼                            │
-│                    output/structured/<domain>.json          │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  HOST LLM  (Claude in Cursor / any MCP client)                  │
+│                                                                 │
+│  crawl_website(url)      →  get_extraction_schema()             │
+│  scrape_url(url)             get_db_context(domain)            │
+│                                     │                           │
+│  Host LLM reads content and fills JSON                          │
+│                                     │                           │
+│  validate_profile(json)  →  save_profile(domain, json)           │
+└─────────────────────────────────────────────────────────────────┘
+         │                      │                       │
+         ▼                      ▼                       ▼
+   output/pages/           schema.py              output/structured/
+   output/sites/           db_reference.py
 ```
 
 ---
@@ -50,21 +44,26 @@ Given a university or conservatory website, the pipeline produces a structured `
 
 ```
 mcp-webscraper/
-├── models/
-│   └── scraping_models.py      # Pydantic request/response models
-├── utils/
-│   └── web_scraper.py          # Core WebScraper class (static + JS + PDF)
-├── scrapping.py                # MCP server — exposes tools to Cursor AI
-├── run_scraper.py              # Standalone scraper CLI (no AI needed)
-├── extractor.py                # LLM extraction logic (Ollama)
-├── run_extractor.py            # Runner for the extractor (configure here)
-├── schema.py                   # SchoolProfile schema + crawl URL hints
-├── pyproject.toml              # Dependencies (managed by uv)
-├── .env.example                # API key template
+├── MCP_server/
+│   ├── server.py           # MCP entry — 9 tools (scrape + extraction)
+│   ├── models/
+│   └── utils/
+│       └── web_scraper.py  # Scraper (static, Playwright, pdfplumber)
+├── schema.py               # SchoolProfile, EXTRACTION_TEMPLATE, FIELD_URL_HINTS
+├── db_reference.py         # WHED DB — picklists, reference examples, ground truth
+├── run_scraper.py          # Standalone CLI — schema-driven crawl, PDF extraction
+├── run_comparison.py       # 3-way comparison: Baseline vs MCP vs Ground Truth
+├── docs/
+│   ├── USAGE_GUIDE.md      # Architecture, flow, outputs, comparison
+│   ├── PROJECT_ITERATIONS.md
+│   └── MCP_VS_N8N_COMPARISON.md
 └── output/
-    ├── sites/                  # Raw crawl results (one JSON per domain)
-    ├── pages/                  # Individual page results
-    └── structured/             # Final LLM-extracted profiles
+    ├── pages/              # Per-page cache from crawl
+    ├── sites/              # Combined site crawl
+    ├── structured/         # MCP extraction output
+    ├── structured_baseline/# Legacy extractions (for comparison)
+    ├── ground_truth/       # WHED DB exports
+    └── comparisons/
 ```
 
 ---
@@ -73,207 +72,107 @@ mcp-webscraper/
 
 - Python 3.10+
 - [uv](https://astral.sh/uv) package manager
-- [Cursor](https://cursor.sh) (for MCP-based usage)
-- [Ollama](https://ollama.com) (local) **or** an Ollama Cloud API key (for extraction)
+- [Cursor](https://cursor.sh) (for MCP usage)
+- MySQL with WHED database (optional — for DB grounding and comparison)
 
 ---
 
 ## Installation
 
-### 1. Clone and install dependencies
-
 ```bash
 git clone https://github.com/your-username/mcp-webscraper.git
 cd mcp-webscraper
 uv sync
-```
-
-### 2. Install Playwright browser (for JavaScript-rendered sites)
-
-```bash
 uv run playwright install chromium
 ```
 
-### 3. Set up environment variables
+Copy `.env.example` to `.env` and add WHED DB credentials (if available).
 
-```bash
-cp .env.example .env
-# Edit .env and add your OLLAMA_API_KEY (only needed for Ollama Cloud)
-```
+### Connect MCP to Cursor
 
----
-
-## Stage 1 — Scraping
-
-### Option A: Via Cursor MCP (recommended)
-
-Add the MCP server to your Cursor settings (`Settings > MCP`):
+Add to `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "WebScrapingServer": {
+    "whed-tools": {
       "command": "uv",
       "args": [
         "run",
-        "--with", "mcp[cli]",
-        "mcp",
-        "run",
-        "C:/path/to/mcp-webscraper/scrapping.py"
+        "--directory",
+        "/path/to/mcp-webscraper",
+        "python",
+        "MCP_server/server.py"
       ]
     }
   }
 }
 ```
 
-Then ask Cursor AI naturally:
+---
 
-```
-"Crawl https://www.example-university.edu — I need all pages related to
-courses, staff, fees, and contact information."
-```
-
-Cursor AI will decide which MCP tools to call and in what order.
-
-#### Available MCP Tools
+## MCP Tools (whed-tools)
 
 | Tool | Description |
 |------|-------------|
-| `scrape_url` | Fetch raw HTML from a single URL |
-| `extract_data` | Extract elements by CSS selector |
-| `extract_first` | Get the first matching element |
-| `batch_scrape` | Scrape multiple URLs at once |
-| `crawl_website` | Discover and crawl an entire site |
+| `scrape_url` | Fetch HTML from a URL |
+| `extract_data` | Extract by CSS selector |
+| `extract_first` | First matching element |
+| `batch_scrape` | Multiple URLs |
+| `crawl_website` | Discover and crawl site |
+| `get_extraction_schema` | WHED field template (REQUIRED only) |
+| `get_db_context` | Picklists + reference example for domain |
+| `validate_profile` | Pydantic + DB picklist validation |
+| `save_profile` | Save profile to `output/structured/` |
 
-### Option B: Standalone script
+### Example prompt
 
-Edit the `CONFIGURATION` block at the top of `run_scraper.py`, then run:
+> "Crawl https://www.example.edu and extract a WHED profile. Use get_extraction_schema and get_db_context, then validate and save."
+
+---
+
+## Standalone Scripts
+
+### Scrape (schema-driven, with PDFs)
+
+Edit `run_scraper.py` (TARGET_URL, MODE, etc.), then:
 
 ```bash
 uv run python run_scraper.py
 ```
 
-Key settings:
+- Uses `schema.FIELD_URL_HINTS` to follow only relevant URLs
+- Extracts text from PDFs via `pdfplumber`
 
-```python
-START_URL   = "https://www.example-university.edu"
-MAX_PAGES   = 100
-MAX_DEPTH   = 4
-OUTPUT_DIR  = "output/sites"
+### Comparison
+
+```bash
+uv run python run_comparison.py                  # All domains
+uv run python run_comparison.py www.ampa.edu.au  # Single domain
 ```
 
-Output: `output/sites/<domain>_<YYYYMMDD>.json`
+Compares **Baseline** (legacy) vs **MCP** vs **Ground Truth** (WHED DB). See `docs/USAGE_GUIDE.md` for interpretation.
 
 ---
 
-## Stage 2 — LLM Extraction
+## Schema & DB Grounding
 
-Edit the `CONFIGURATION` block in `run_extractor.py`:
-
-```python
-# Ollama Cloud (recommended — fast, large model)
-BASE_URL       = "https://api.ollama.com"
-MODEL          = "qwen3-coder:480b-cloud"
-OLLAMA_API_KEY = ""   # loaded from .env automatically
-
-# Local Ollama (free, no key, slower)
-# BASE_URL = "http://localhost:11434"
-# MODEL    = "qwen2.5:7b"
-```
-
-Then run:
-
-```bash
-uv run python run_extractor.py
-```
-
-The extractor will:
-1. Read all JSONs from `output/sites/`
-2. Prioritize high-value pages (course, staff, fee pages) within the LLM context budget
-3. Send a structured prompt to Ollama
-4. Validate the response against `SchoolProfile` in `schema.py`
-5. Save to `output/structured/<domain>.json`
-
-### Local Ollama setup
-
-```bash
-# Install Ollama: https://ollama.com
-ollama pull qwen2.5:7b    # ~4.7 GB, recommended
-ollama pull phi3.5        # ~2.2 GB, fastest
-```
+- **REQUIRED** fields are in `EXTRACTION_TEMPLATE`; **DEFERRED** fields are in Pydantic but not prompted.
+- With WHED DB: picklists, few-shot examples, and post-validation reduce hallucination.
+- Edit `schema.py` to add or reactivate fields.
 
 ---
 
-## Customising the Schema
+## Documentation
 
-All extracted fields are defined in `schema.py`. Editing `SchoolProfile` automatically updates:
-- The LLM prompt template (`EXTRACTION_TEMPLATE`)
-- Output validation
-- URL crawl hints (`FIELD_URL_HINTS`) — controls which pages `run_scraper.py` prioritises
-
----
-
-## Output Format
-
-`output/structured/<domain>.json` example:
-
-```json
-{
-  "domain": "www.example-university.edu",
-  "source_url": "https://www.example-university.edu",
-  "extracted_at": "2026-03-06T14:00:00",
-  "extraction_model": "qwen3-coder:480b-cloud",
-  "basic_details": {
-    "name": "Example University",
-    "address": "123 University Ave, City, Country",
-    "phone": "+1 234 567 8900",
-    "email": "info@example-university.edu",
-    "institution_type": "public",
-    "year_founded": 1905,
-    "website": "https://www.example-university.edu"
-  },
-  "key_contacts": [
-    {
-      "name": "Jane Smith",
-      "title": "President",
-      "email": "president@example-university.edu",
-      "verification_status": "unverified"
-    }
-  ],
-  "departments": [...],
-  "degree_programs": [...]
-}
-```
-
----
-
-## Troubleshooting
-
-**MCP server not appearing in Cursor**
-
-Restart Cursor after editing MCP settings. Check `scraping_server.log` for errors.
-
-**Playwright / JavaScript scraping fails**
-
-```bash
-uv run playwright install chromium
-```
-
-**Ollama Cloud: API key error**
-
-Ensure `OLLAMA_API_KEY` is set in `.env` or in the `CONFIGURATION` block of `run_extractor.py`.
-
-**Local Ollama not reachable**
-
-```bash
-# Check Ollama is running
-ollama list
-# Start if needed
-ollama serve
-```
+| Doc | Content |
+|-----|---------|
+| [USAGE_GUIDE.md](docs/USAGE_GUIDE.md) | Architecture, flow, outputs, comparison interpretation |
+| [PROJECT_ITERATIONS.md](docs/PROJECT_ITERATIONS.md) | Evolution from Ollama to MCP-native |
+| [MCP_VS_N8N_COMPARISON.md](docs/MCP_VS_N8N_COMPARISON.md) | KPI comparison with N8N + Firecrawl |
 
 ---
 
 ## License
 
-MIT License — based on [samirsaci/mcp-webscraper](https://github.com/samirsaci/mcp-webscraper).
+MIT — based on [samirsaci/mcp-webscraper](https://github.com/samirsaci/mcp-webscraper).

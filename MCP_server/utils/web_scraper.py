@@ -11,7 +11,7 @@ from urllib.parse import urljoin, urlparse
 from collections import deque
 from typing import Set, Dict, List, Optional
 
-from models.scraping_models import (
+from MCP_server.models.scraping_models import (
     ScrapingRequest,
     ScrapingResponse,
     ScrapingMethod,

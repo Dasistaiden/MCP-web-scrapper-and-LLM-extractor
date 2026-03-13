@@ -3,10 +3,15 @@ schema.py — School Profile Data Structure (IAU WHED field specifications)
 ==========================================================================
 Priority levels (IAU-Categorisation):
   Required      : Must extract; LLM actively seeks these fields
+  ── Below are DEFERRED (kept for future use, not sent to LLM) ──
   Important     : Extract when clearly stated on the page
   Nice-to-have  : Extract only if directly visible
   Supplemental  : Skip if not immediately obvious
   Not Collected : Excluded from schema entirely
+
+Current scope: REQUIRED fields only.
+Non-required fields are preserved in the Pydantic models (marked DEFERRED)
+but excluded from EXTRACTION_TEMPLATE so the LLM focuses on high-priority data.
 
 Edit this file to add, remove, or rename fields.
 Changes here automatically propagate to the LLM prompt, output validation,
@@ -52,22 +57,22 @@ class OrgBasics(BaseModel):
         None,
         description=(
             "REQUIRED: Funding type. One of: "
-            "Pu (Public), Pr (Private), Pp (Public-Private), Mi (Mixed), Un (Unknown)"
+            "Pu (Public), Pr (Private), Pp (Private-for-profit), Mi (Mixed), Un (Unknown)"
         )
     )
-    # ── Nice-to-have ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Nice-to-have ───────────────────────────────────────────────
     year_acquired_status: Optional[int] = Field(
         None,
-        description="NICE-TO-HAVE: Year the institution acquired its current status (e.g. became a university)"
+        description="DEFERRED (Nice-to-have): Year the institution acquired its current status"
     )
     other_campuses: Optional[str] = Field(
         None,
-        description="NICE-TO-HAVE: Other campus locations (city or address)"
+        description="DEFERRED (Nice-to-have): Other campus locations (city or address)"
     )
-    # ── Supplemental ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Supplemental ───────────────────────────────────────────────
     acronym: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Official acronym or abbreviation of the institution name"
+        description="DEFERRED (Supplemental): Official acronym or abbreviation"
     )
 
 
@@ -75,79 +80,81 @@ class ContactInfo(BaseModel):
     # ── Required ──────────────────────────────────────────────────────────────
     city: Optional[str] = Field(
         None,
-        description="REQUIRED: City where the institution is located"
+        description="REQUIRED: City or suburb/locality where the institution is located (use the most specific locality, e.g. 'Surry Hills' not 'Sydney')"
     )
-    # ── Important ─────────────────────────────────────────────────────────────
+    # ── DEFERRED — Important ──────────────────────────────────────────────────
     street: Optional[str] = Field(
         None,
-        description="IMPORTANT: Street address of the institution"
+        description="DEFERRED (Important): Street address of the institution"
     )
     province: Optional[str] = Field(
         None,
-        description="IMPORTANT: Province, state, or region"
+        description="DEFERRED (Important): Province, state, or region"
     )
     post_code: Optional[str] = Field(
         None,
-        description="IMPORTANT: Postal or ZIP code"
+        description="DEFERRED (Important): Postal or ZIP code"
     )
     website: Optional[str] = Field(
         None,
-        description="IMPORTANT: Official website URL"
+        description="DEFERRED (Important): Official website URL"
     )
-    # ── Nice-to-have ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Nice-to-have ───────────────────────────────────────────────
     email: Optional[str] = Field(
         None,
-        description="NICE-TO-HAVE: Main contact or admissions email address"
+        description="DEFERRED (Nice-to-have): Main contact or admissions email address"
     )
-    # ── Supplemental ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Supplemental ───────────────────────────────────────────────
     phone: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Main switchboard phone number"
+        description="DEFERRED (Supplemental): Main switchboard phone number"
     )
 
 
 class AcademicInfo(BaseModel):
-    # ── Important ─────────────────────────────────────────────────────────────
+    """All fields in this section are DEFERRED (Important / Supplemental)."""
+    # ── DEFERRED — Important ──────────────────────────────────────────────────
     languages_of_instruction: List[str] = Field(
         default_factory=list,
-        description="IMPORTANT: Languages in which courses are taught (e.g. ['English', 'French'])"
+        description="DEFERRED (Important): Languages in which courses are taught"
     )
     accrediting_body: Optional[str] = Field(
         None,
-        description="IMPORTANT: Name of the accrediting agency or body"
+        description="DEFERRED (Important): Name of the accrediting agency or body"
     )
     history: Optional[str] = Field(
         None,
-        description="IMPORTANT: Brief summary of the institution's history"
+        description="DEFERRED (Important): Brief summary of the institution's history"
     )
-    # ── Supplemental ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Supplemental ───────────────────────────────────────────────
     academic_year: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Academic year structure (e.g. 'September to June, two semesters')"
+        description="DEFERRED (Supplemental): Academic year structure"
     )
     admission_requirements: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: General admission requirements summary"
+        description="DEFERRED (Supplemental): General admission requirements summary"
     )
     student_body: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Student body composition. One of: Co-ed, Female-only, Male-only"
+        description="DEFERRED (Supplemental): Co-ed, Female-only, Male-only"
     )
     learning_modalities: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Teaching modalities. One of: Traditional, Online, Both"
+        description="DEFERRED (Supplemental): Traditional, Online, Both"
     )
 
 
 class TuitionInfo(BaseModel):
-    # ── Nice-to-have ──────────────────────────────────────────────────────────
+    """All fields in this section are DEFERRED (Nice-to-have)."""
+    # ── DEFERRED — Nice-to-have ───────────────────────────────────────────────
     national_students: Optional[str] = Field(
         None,
-        description="NICE-TO-HAVE: Average tuition fees for domestic/national students (include currency)"
+        description="DEFERRED (Nice-to-have): Average tuition fees for domestic students"
     )
     international_students: Optional[str] = Field(
         None,
-        description="NICE-TO-HAVE: Average tuition fees for international students (include currency)"
+        description="DEFERRED (Nice-to-have): Average tuition fees for international students"
     )
 
 
@@ -169,30 +176,29 @@ class KeyContact(BaseModel):
         None,
         description=(
             "REQUIRED: Job function category. One of: "
-            "Head of Institution, Senior Admin Officer, International Relations Officer"
+            "Head of Institution (code: 1H), "
+            "Senior Administrative Officer (code: 2A), "
+            "International Relations Officer (code: 3R)"
         )
     )
-    # ── Important ─────────────────────────────────────────────────────────────
+    # ── DEFERRED — Important ──────────────────────────────────────────────────
     email: Optional[str] = Field(
         None,
-        description="IMPORTANT: Direct email address of the contact"
+        description="DEFERRED (Important): Direct email address of the contact"
     )
     gender: Optional[str] = Field(
         None,
-        description="IMPORTANT: Gender of the contact person"
+        description="DEFERRED (Important): M (Male), F (Female), X (Other)"
     )
-    # ── Nice-to-have ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Nice-to-have ───────────────────────────────────────────────
     years_of_office: Optional[str] = Field(
         None,
-        description=(
-            "NICE-TO-HAVE: Period in office, e.g. 'January 2020 -' or '2018 - 2023'. "
-            "Use 'YYYY -' if still in office."
-        )
+        description="DEFERRED (Nice-to-have): Period in office, e.g. 'January 2020 -'"
     )
-    # ── Supplemental ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Supplemental ───────────────────────────────────────────────
     phone: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Direct phone number of the contact"
+        description="DEFERRED (Supplemental): Direct phone number of the contact"
     )
     # ── Metadata ──────────────────────────────────────────────────────────────
     verification_status: str = Field(
@@ -210,17 +216,19 @@ class Division(BaseModel):
         None,
         description=(
             "REQUIRED: Type of division. One of: "
-            "Faculty, School, Department, Institute, Centre, College, Other"
+            "Faculty, School, Department/Division, Institute, Centre, College, "
+            "Academy, Campus, Campus Abroad, Conservatory, Course/Programme, "
+            "Foundation, Graduate School, Group, Laboratory, Research Division, Unit, Chair"
         )
     )
     fields_of_study: List[str] = Field(
         default_factory=list,
         description="REQUIRED: Fields of study or disciplines taught in this division"
     )
-    # ── Supplemental ──────────────────────────────────────────────────────────
+    # ── DEFERRED — Supplemental ───────────────────────────────────────────────
     details: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Additional details, e.g. campus location or short description"
+        description="DEFERRED (Supplemental): Additional details, e.g. campus location"
     )
 
 
@@ -230,40 +238,46 @@ class DegreeProgram(BaseModel):
         description="REQUIRED: Full credential name (e.g. Bachelor of Business Administration)"
     )
     level: str = Field(
-        description="REQUIRED: Degree level: 'Bachelor' | 'Master' | 'Doctorate' | 'Certificate' | 'Diploma'"
+        description=(
+            "REQUIRED: Degree level — use the country-specific credential name from WHED "
+            "(e.g. 'Bachelor Degree', 'Master Degree', 'Doctoral Degree', 'Associate Degree', "
+            "'Graduate Certificate/Diploma', 'Diploma'). "
+            "If unsure, use one of: Bachelor, Master, Doctorate, Certificate, Diploma"
+        )
     )
-    # ── Enrichment (extract when available) ───────────────────────────────────
+    # ── DEFERRED — Enrichment ─────────────────────────────────────────────────
     department: Optional[str] = Field(
         None,
-        description="Division or faculty offering this program"
+        description="DEFERRED: Division or faculty offering this program"
     )
     duration: Optional[str] = Field(
         None,
-        description="Program length, e.g. '3 years', '4 semesters'"
+        description="DEFERRED: Program length, e.g. '3 years', '4 semesters'"
     )
     language_of_instruction: Optional[str] = Field(
         None,
-        description="Language courses are taught in for this program"
+        description="DEFERRED: Language courses are taught in for this program"
     )
     tuition_fee: Optional[str] = Field(
         None,
-        description="Tuition fee for this specific program (include currency)"
+        description="DEFERRED: Tuition fee for this specific program (include currency)"
     )
     entry_requirements: Optional[str] = Field(
         None,
-        description="Admission requirements summary for this program"
+        description="DEFERRED: Admission requirements summary for this program"
     )
 
 
 class OtherInfo(BaseModel):
-    # ── Supplemental ──────────────────────────────────────────────────────────
+    """All fields in this section are DEFERRED (Supplemental)."""
+    # ── DEFERRED — Supplemental ───────────────────────────────────────────────
     student_numbers: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Enrollment numbers (male, female, students with disabilities)"
+        description="DEFERRED (Supplemental): Enrollment numbers"
     )
     institutional_publications: Optional[str] = Field(
         None,
-        description="SUPPLEMENTAL: Notable institutional publications or research outputs"
+        description="DEFERRED (Supplemental): Notable institutional publications"
     )
 
 
@@ -281,8 +295,8 @@ class SchoolProfile(BaseModel):
     # LLM-extracted fields
     org_basics: OrgBasics
     contact: ContactInfo
-    academic: AcademicInfo
-    tuition: TuitionInfo
+    academic: Optional[AcademicInfo] = None
+    tuition: Optional[TuitionInfo] = None
     key_contacts: List[KeyContact] = Field(default_factory=list)
     divisions: List[Division] = Field(default_factory=list)
     degree_programs: List[DegreeProgram] = Field(default_factory=list)
@@ -309,16 +323,17 @@ FIELD_URL_HINTS: dict[str, list[str]] = {
         "contact", "address", "location", "find-us", "directions", "map",
         "reach-us", "get-in-touch",
     ],
-    "academic": [
-        "academic", "accreditation", "accredited", "recognition",
-        "admission", "admissions", "requirements", "entry",
-        "language", "languages", "instruction",
-        "academic-year", "calendar", "semester",
-    ],
-    "tuition": [
-        "fee", "fees", "tuition", "cost", "costs", "price", "pricing",
-        "tariff", "domestic", "international", "scholarship", "financial",
-    ],
+    # DEFERRED sections — crawl hints kept for future reactivation
+    # "academic": [
+    #     "academic", "accreditation", "accredited", "recognition",
+    #     "admission", "admissions", "requirements", "entry",
+    #     "language", "languages", "instruction",
+    #     "academic-year", "calendar", "semester",
+    # ],
+    # "tuition": [
+    #     "fee", "fees", "tuition", "cost", "costs", "price", "pricing",
+    #     "tariff", "domestic", "international", "scholarship", "financial",
+    # ],
     "key_contacts": [
         "people", "staff", "team", "faculty", "board", "governance",
         "contact", "leadership", "management", "directory",
@@ -361,8 +376,10 @@ def url_matches_schema(url: str) -> bool:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JSON template shown to the LLM in the extraction prompt
-# (auto-generated from the models above — do not edit manually)
 # ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED fields only — non-required fields are accepted by the Pydantic
+# models if the LLM returns them, but are NOT requested in the prompt.
+# To reactivate a section, move its fields back from the DEFERRED comments.
 
 EXTRACTION_TEMPLATE = {
     "org_basics": {
@@ -372,68 +389,76 @@ EXTRACTION_TEMPLATE = {
         "year_founded": "integer or null — REQUIRED: e.g. 1905 (use 0 if unknown)",
         "institution_type_international": "string or null — REQUIRED: UV / OI / NA / NC / MR / PB / DU / UD / ME / SN",
         "institution_type_national": "string or null — REQUIRED: national classification",
-        "funding_type": "string or null — REQUIRED: Pu / Pr / Pp / Mi / Un",
-        "year_acquired_status": "integer or null — NICE-TO-HAVE",
-        "other_campuses": "string or null — NICE-TO-HAVE",
-        "acronym": "string or null — SUPPLEMENTAL"
+        "funding_type": "string or null — REQUIRED: Pu (Public) / Pr (Private) / Pp (Private-for-profit) / Mi (Mixed) / Un (Unknown)",
+        # DEFERRED:
+        # "year_acquired_status": "integer or null — NICE-TO-HAVE",
+        # "other_campuses": "string or null — NICE-TO-HAVE",
+        # "acronym": "string or null — SUPPLEMENTAL",
     },
     "contact": {
-        "city": "string or null — REQUIRED",
-        "street": "string or null — IMPORTANT",
-        "province": "string or null — IMPORTANT",
-        "post_code": "string or null — IMPORTANT",
-        "website": "string or null — IMPORTANT",
-        "email": "string or null — NICE-TO-HAVE",
-        "phone": "string or null — SUPPLEMENTAL"
+        "city": "string or null — REQUIRED: use most specific locality (suburb, not metro area)",
+        # DEFERRED:
+        # "street": "string or null — IMPORTANT",
+        # "province": "string or null — IMPORTANT",
+        # "post_code": "string or null — IMPORTANT",
+        # "website": "string or null — IMPORTANT",
+        # "email": "string or null — NICE-TO-HAVE",
+        # "phone": "string or null — SUPPLEMENTAL",
     },
-    "academic": {
-        "languages_of_instruction": ["language1", "language2"],
-        "accrediting_body": "string or null — IMPORTANT",
-        "history": "string or null — IMPORTANT: brief summary",
-        "academic_year": "string or null — SUPPLEMENTAL",
-        "admission_requirements": "string or null — SUPPLEMENTAL",
-        "student_body": "Co-ed | Female-only | Male-only | null — SUPPLEMENTAL",
-        "learning_modalities": "Traditional | Online | Both | null — SUPPLEMENTAL"
-    },
-    "tuition": {
-        "national_students": "string or null — NICE-TO-HAVE: e.g. '€5,000/year'",
-        "international_students": "string or null — NICE-TO-HAVE: e.g. '€8,000/year'"
-    },
+    # DEFERRED — entire section (no required fields):
+    # "academic": {
+    #     "languages_of_instruction": ["language1", "language2"],
+    #     "accrediting_body": "string or null — IMPORTANT",
+    #     "history": "string or null — IMPORTANT",
+    #     "academic_year": "string or null — SUPPLEMENTAL",
+    #     "admission_requirements": "string or null — SUPPLEMENTAL",
+    #     "student_body": "Co-ed | Female-only | Male-only | null — SUPPLEMENTAL",
+    #     "learning_modalities": "Traditional | Online | Both | null — SUPPLEMENTAL",
+    # },
+    # DEFERRED — entire section (no required fields):
+    # "tuition": {
+    #     "national_students": "string or null — NICE-TO-HAVE",
+    #     "international_students": "string or null — NICE-TO-HAVE",
+    # },
     "key_contacts": [
         {
             "first_name": "string or null — REQUIRED",
             "surname": "string or null — REQUIRED",
             "job_title": "string or null — REQUIRED: e.g. President, Rector, Dean",
-            "job_function": "Head of Institution | Senior Admin Officer | International Relations Officer | null — REQUIRED",
-            "email": "string or null — IMPORTANT",
-            "gender": "string or null — IMPORTANT",
-            "years_of_office": "string or null — NICE-TO-HAVE: e.g. 'January 2020 -'",
-            "phone": "string or null — SUPPLEMENTAL",
-            "verification_status": "'unverified'"
+            "job_function": "Head of Institution | Senior Administrative Officer | International Relations Officer | null — REQUIRED",
+            # DEFERRED:
+            # "email": "string or null — IMPORTANT",
+            # "gender": "M | F | X | null — IMPORTANT",
+            # "years_of_office": "string or null — NICE-TO-HAVE",
+            # "phone": "string or null — SUPPLEMENTAL",
+            "verification_status": "'unverified'",
         }
     ],
     "divisions": [
         {
             "name": "string — REQUIRED: division name",
-            "division_type": "Faculty | School | Department | Institute | Centre | College | Other | null — REQUIRED",
+            "division_type": "Faculty | School | Department/Division | Institute | Centre | College | Academy | Campus | Conservatory | Course/Programme | Graduate School | Research Division | Unit | null — REQUIRED",
             "fields_of_study": ["field1", "field2"],
-            "details": "string or null — SUPPLEMENTAL"
+            # DEFERRED:
+            # "details": "string or null — SUPPLEMENTAL",
         }
     ],
     "degree_programs": [
         {
             "name": "string — REQUIRED: full credential name",
-            "level": "Bachelor | Master | Doctorate | Certificate | Diploma — REQUIRED",
-            "department": "string or null",
-            "duration": "string or null",
-            "language_of_instruction": "string or null",
-            "tuition_fee": "string or null",
-            "entry_requirements": "string or null"
+            "level": "string — REQUIRED: use country-specific credential name (e.g. 'Bachelor Degree', 'Master Degree', 'Doctoral Degree', 'Associate Degree', 'Graduate Certificate/Diploma', 'Diploma')",
+            # DEFERRED:
+            # "department": "string or null",
+            # "duration": "string or null",
+            # "language_of_instruction": "string or null",
+            # "tuition_fee": "string or null",
+            # "entry_requirements": "string or null",
         }
     ],
-    "other": {
-        "student_numbers": "string or null — SUPPLEMENTAL",
-        "institutional_publications": "string or null — SUPPLEMENTAL"
-    },
-    "extraction_notes": "string or null — note any missing or uncertain data"
+    # DEFERRED — entire section (no required fields):
+    # "other": {
+    #     "student_numbers": "string or null — SUPPLEMENTAL",
+    #     "institutional_publications": "string or null — SUPPLEMENTAL",
+    # },
+    "extraction_notes": "string or null — note any missing or uncertain data",
 }
