@@ -18,7 +18,7 @@ from MCP_server.models.scraping_models import (
     ElementSelector,
     ExtractRequest
 )
-from schema import EXTRACTION_TEMPLATE, SchoolProfile, FIELD_URL_HINTS
+from schema import EXTRACTION_TEMPLATE, SchoolProfile, FIELD_URL_HINTS, url_matches_schema
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -353,6 +353,7 @@ def crawl_website(
     max_pages: int = 50,
     max_depth: int = 3,
     same_domain_only: bool = True,
+    schema_filter: bool = False,
     save_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -363,6 +364,10 @@ def crawl_website(
         max_pages: Maximum pages to crawl (default 50)
         max_depth: Maximum link depth (default 3)
         same_domain_only: Stay on same domain (default True)
+        schema_filter: When True, only follow URLs whose path contains keywords
+                       relevant to the WHED schema (about, contact, course, program,
+                       faculty, etc.). Skips login pages, media, and unrelated content.
+                       Recommended for institution websites.
         save_path: Optional file path to save the site map as JSON (e.g. "C:/Users/me/Desktop/sitemap.json").
                    If a directory is given, a timestamped filename is generated automatically.
     
@@ -374,7 +379,8 @@ def crawl_website(
         max_pages=max_pages,
         max_depth=max_depth,
         same_domain_only=same_domain_only,
-        delay_seconds=0.5  # Delay between requests to avoid overloading servers (you can adjust this if you want)
+        delay_seconds=0.5,
+        url_filter=url_matches_schema if schema_filter else None,
     )
 
     if save_path:
@@ -382,6 +388,99 @@ def crawl_website(
         result["saved_to"] = saved_to
 
     return result
+
+
+@mcp.tool()
+def extract_pdf_text(
+    url: str,
+    max_size_mb: int = 5,
+    max_chars: int = 30000,
+) -> Dict[str, Any]:
+    """
+    Download a PDF and extract its text content using pdfplumber.
+    Useful for reading course handbooks, academic calendars, prospectuses,
+    and other PDF documents discovered during crawling.
+
+    Args:
+        url: Direct URL to a PDF file
+        max_size_mb: Skip PDFs larger than this (default 5 MB)
+        max_chars: Cap extracted text length (default 30000 chars)
+
+    Returns:
+        Dictionary with extracted text, page count, and character count.
+        Returns success=False if the PDF is too large, image-based, or unreadable.
+    """
+    try:
+        import pdfplumber
+    except ImportError:
+        return {
+            "success": False,
+            "error": "pdfplumber not installed. Run: uv add pdfplumber",
+            "url": url,
+        }
+
+    import io
+
+    try:
+        logger.info(f"Downloading PDF: {url}")
+        resp = requests.get(
+            url,
+            timeout=30,
+            headers={"User-Agent": "Mozilla/5.0"},
+            stream=True,
+        )
+        if resp.status_code != 200:
+            return {
+                "success": False,
+                "error": f"HTTP {resp.status_code}",
+                "url": url,
+            }
+
+        content = b""
+        for chunk in resp.iter_content(chunk_size=65536):
+            content += chunk
+            if len(content) > max_size_mb * 1024 * 1024:
+                return {
+                    "success": False,
+                    "error": f"PDF exceeds {max_size_mb} MB limit",
+                    "url": url,
+                }
+
+        text_pages = []
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages[:40]:
+                text = page.extract_text()
+                if text and text.strip():
+                    text_pages.append(text.strip())
+
+        combined = "\n\n".join(text_pages).strip()
+        if len(combined) < 100:
+            return {
+                "success": False,
+                "error": "PDF appears to be image-based (no extractable text)",
+                "url": url,
+            }
+
+        truncated = len(combined) > max_chars
+        combined = combined[:max_chars]
+
+        logger.info(f"PDF extracted: {len(combined):,} chars from {len(text_pages)} pages")
+        return {
+            "success": True,
+            "url": url,
+            "text": combined,
+            "page_count": len(text_pages),
+            "char_count": len(combined),
+            "truncated": truncated,
+        }
+
+    except Exception as e:
+        logger.error(f"PDF extraction failed ({url}): {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "url": url,
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -653,11 +752,13 @@ def get_help() -> str:
     ================================
 
     SCRAPING:
-    - scrape_url(url)              Get full HTML of a webpage
-    - extract_data(url, selectors) Extract data via CSS selectors
-    - extract_first(url, selector) Get a single element value
-    - batch_scrape(urls)           Scrape multiple URLs
-    - crawl_website(start_url)     Discover site structure and pages
+    - scrape_url(url)                          Get full HTML of a webpage
+    - extract_data(url, selectors)             Extract data via CSS selectors
+    - extract_first(url, selector)             Get a single element value
+    - batch_scrape(urls)                       Scrape multiple URLs
+    - crawl_website(start_url, schema_filter)  Discover site structure (set schema_filter=True
+                                               to only follow URLs relevant to WHED schema)
+    - extract_pdf_text(url)                    Download a PDF and extract its text content
 
     STRUCTURED EXTRACTION (MCP-native, no external LLM needed):
     - get_extraction_schema()      Get the WHED field template (what to extract)
@@ -665,13 +766,15 @@ def get_help() -> str:
     - validate_profile(json)       Validate extraction against schema + DB
     - save_profile(domain, json)   Save validated profile to disk
 
-    EXTRACTION WORKFLOW:
-    1. crawl_website(url) or scrape_url(url)  -> get site content
-    2. get_extraction_schema()                -> know what fields to fill
-    3. get_db_context(domain)                 -> get picklists & reference
-    4. (You extract the data from the content)
-    5. validate_profile(json_string)          -> check for errors
-    6. save_profile(domain, json_string)      -> persist the result
+    RECOMMENDED WORKFLOW:
+    1. crawl_website(url, schema_filter=True)  -> discover relevant pages
+    2. scrape_url(page_url)                    -> read specific pages
+    3. extract_pdf_text(pdf_url)               -> read PDF documents (handbooks, etc.)
+    4. get_extraction_schema()                 -> know what fields to fill
+    5. get_db_context(domain)                  -> get picklists & reference
+    6. (You extract the data from the content)
+    7. validate_profile(json_string)           -> check for errors
+    8. save_profile(domain, json_string)       -> persist the result
     """
 
 

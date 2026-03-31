@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Comparison GUI Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px; background: #f5f4f0; color: #1a1a18;
+  }
+
+  /* Topbar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 0.5px solid rgba(0,0,0,0.10); background: #fff;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .app-title { font-size: 14px; font-weight: 600; }
+  .badge {
+    font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 999px;
+    background: #e6f1fb; color: #185fa5; border: 0.5px solid #85b7eb;
+  }
+  .progress-area { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5c5c58; }
+  .progress-bar-wrap { width: 120px; height: 4px; background: rgba(0,0,0,0.10); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: #3B6D11; border-radius: 2px; transition: width 0.3s; }
+  .topbar-right { display: flex; gap: 6px; }
+  .stat-pill {
+    font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 999px;
+    background: #eaf3de; color: #3B6D11; border: 0.5px solid #a0c96a;
+  }
+  .stat-pill.warn   { background: #faeeda; color: #855010; border-color: #f0c070; }
+  .stat-pill.danger { background: #fcebeb; color: #a32d2d; border-color: #f09595; }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex; align-items: stretch;
+    background: #fff; border-bottom: 0.5px solid rgba(0,0,0,0.12);
+    padding: 0 16px;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 7px;
+    padding: 10px 18px; font-size: 13px; font-weight: 500;
+    color: #5c5c58; background: none; border: none;
+    border-bottom: 2px solid transparent; cursor: pointer;
+    margin-bottom: -0.5px; transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .tab:hover { color: #1a1a18; }
+  .tab.active { color: #185fa5; border-bottom-color: #185fa5; }
+  .tab-count {
+    font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+    background: #f5f4f0; color: #9a9994;
+  }
+  .tab.active .tab-count { background: #e6f1fb; color: #185fa5; }
+
+  /* Compare grid */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 0.5px solid rgba(0,0,0,0.10); }
+  .panel { padding: 16px 20px; background: #fff; }
+  .panel-original { border-right: 0.5px solid rgba(0,0,0,0.10); }
+  .panel-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.07em;
+    text-transform: uppercase; color: #9a9994; margin-bottom: 12px;
+  }
+  .panel-header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .panel-header-row .panel-label { margin-bottom: 0; }
+  .decision-chip {
+    font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px;
+  }
+  .field-block {
+    margin-bottom: 9px; padding: 10px 12px;
+    background: #f5f4f0; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.10);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .field-block.match    { border-color: #a0c96a; background: #eaf3de; }
+  .field-block.partial  { border-color: #f0c070; background: #faeeda; }
+  .field-block.mismatch { border-color: #f09595; background: #fcebeb; }
+  .field-key {
+    font-size: 11px; color: #9a9994; margin-bottom: 4px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .field-val { font-size: 13px; line-height: 1.55; color: #1a1a18; }
+  .field-score { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .score-high { background: #eaf3de; color: #3B6D11; }
+  .score-mid  { background: #faeeda; color: #855010; }
+  .score-low  { background: #fcebeb; color: #a32d2d; }
+
+  /* Scores bar */
+  .scores-bar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 20px; background: #fff; border-bottom: 0.5px solid rgba(0,0,0,0.10);
+  }
+  .score-item { display: flex; align-items: center; gap: 8px; }
+  .score-label { font-size: 11px; color: #9a9994; }
+  .score-text  { font-size: 12px; font-weight: 500; }
+  .score-link  { font-size: 11px; color: #185fa5; text-decoration: none; }
+  .score-divider { width: 0.5px; height: 18px; background: rgba(0,0,0,0.18); }
+  .traffic-light { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .tl-green  { background: #1D9E75; box-shadow: 0 0 0 3px rgba(29,158,117,0.2); }
+  .tl-yellow { background: #EF9F27; box-shadow: 0 0 0 3px rgba(239,159,39,0.2); }
+  .tl-red    { background: #E24B4A; box-shadow: 0 0 0 3px rgba(226,75,74,0.2); }
+  .nlp-bar-wrap { width: 90px; height: 5px; background: rgba(0,0,0,0.10); border-radius: 3px; overflow: hidden; }
+  .nlp-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+
+  /* Edit */
+  .edit-section { padding: 12px 20px; background: #fff; border-bottom: 0.5px solid rgba(0,0,0,0.10); }
+  .edit-label { font-size: 11px; color: #9a9994; margin-bottom: 7px; }
+  .edit-box {
+    width: 100%; font-size: 13px; line-height: 1.6; color: #1a1a18;
+    background: #f5f4f0; border: 0.5px solid rgba(0,0,0,0.18);
+    border-radius: 8px; padding: 10px 12px; resize: vertical; min-height: 80px;
+    font-family: inherit;
+  }
+  .edit-box:focus { outline: none; border-color: #185fa5; }
+
+  /* Actions */
+  .actions-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 20px; background: #fff;
+  }
+  .btn {
+    font-size: 13px; font-weight: 500; padding: 8px 18px; border-radius: 8px;
+    border: 0.5px solid rgba(0,0,0,0.18); cursor: pointer; font-family: inherit;
+    transition: opacity 0.15s; background: #f5f4f0; color: #1a1a18;
+  }
+  .btn:hover { opacity: 0.8; }
+  .btn-accept { background: #eaf3de; color: #3B6D11; border-color: #a0c96a; }
+  .btn-modify { background: #faeeda; color: #855010; border-color: #f0c070; }
+  .btn-reject { background: #fcebeb; color: #a32d2d; border-color: #f09595; }
+  .btn-nav    { background: #fff; color: #5c5c58; }
+  .nav-group  { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+  .nav-pos    { font-size: 12px; color: #5c5c58; min-width: 50px; text-align: center; }
+  .api-banner { font-size: 11px; color: #855010; padding: 6px 20px; background: #faeeda; border-bottom: 0.5px solid #f0c070; }
+  .api-banner.err { color: #a32d2d; background: #fcebeb; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="app-title">Data Review</span>
+    <span class="badge" id="badge-record">—</span>
+    <select id="domain-sel" class="badge" style="cursor:pointer;max-width:220px;font:inherit;" title="Institution domain"></select>
+  </div>
+  <div class="progress-area">
+    <span id="pct-label">—</span>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="stat-pill">✓ <span id="cnt-ok">0</span></div>
+    <div class="stat-pill warn">✎ <span id="cnt-mod">0</span></div>
+    <div class="stat-pill danger">⚑ <span id="cnt-man">0</span></div>
+  </div>
+</div>
+<div id="api-banner" class="api-banner" style="display:none"></div>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTable('institutions', this)">
+    🏛 Institutions <span class="tab-count">38</span>
+  </button>
+  <button class="tab" onclick="switchTable('divisions', this)">
+    🏢 Divisions <span class="tab-count">54</span>
+  </button>
+  <button class="tab" onclick="switchTable('contacts', this)">
+    👤 Contacts <span class="tab-count">91</span>
+  </button>
+</div>
+
+<!-- COMPARE GRID -->
+<div class="compare-grid">
+  <div class="panel panel-original">
+    <div class="panel-label">WHED Original</div>
+    <div id="orig-fields"></div>
+  </div>
+  <div class="panel panel-scraped">
+    <div class="panel-header-row">
+      <div class="panel-label">Scraped Result</div>
+      <span class="decision-chip" id="decision-chip" style="display:none"></span>
+    </div>
+    <div id="scr-fields"></div>
+  </div>
+</div>
+
+<!-- SCORES BAR -->
+<div class="scores-bar">
+  <div class="score-item">
+    <span class="score-label">Ollama semantic</span>
+    <div class="traffic-light" id="traffic-light"></div>
+    <span class="score-text" id="traffic-label">—</span>
+  </div>
+  <div class="score-divider"></div>
+  <div class="score-item">
+    <span class="score-label">NLP similarity</span>
+    <div class="nlp-bar-wrap"><div class="nlp-bar-fill" id="nlp-bar"></div></div>
+    <span class="score-text" id="nlp-score">—</span>
+  </div>
+  <div class="score-divider"></div>
+  <div class="score-item">
+    <span class="score-label">Source URL</span>
+    <a class="score-link" id="source-url" href="#">—</a>
+  </div>
+  <div class="score-divider"></div>
+  <div class="score-item">
+    <span class="score-label">Scraped</span>
+    <span class="score-text" id="scraped-at">—</span>
+  </div>
+</div>
+
+<!-- EDIT BOX -->
+<div class="edit-section">
+  <div class="edit-label">Scraped text to save — edit before saving if needed</div>
+  <textarea class="edit-box" id="edit-box"></textarea>
+</div>
+
+<!-- ACTIONS -->
+<div class="actions-bar">
+  <button type="button" class="btn btn-accept" id="btn-accept">✓ All fine</button>
+  <button type="button" class="btn btn-modify" id="btn-modify">✎ Modify &amp; save</button>
+  <button type="button" class="btn btn-reject" id="btn-reject">✕ Reject</button>
+  <div class="nav-group">
+    <button class="btn btn-nav" onclick="navigate(-1)">← Prev</button>
+    <span class="nav-pos" id="nav-pos">— / —</span>
+    <button class="btn btn-nav" onclick="navigate(1)">Next →</button>
+  </div>
+</div>
+
+<script>
+const API_BASE = "";
+
+const DEMO_DATA = {
+  institutions: {
+    total: 38, cursor: 12, stats: { ok: 4, mod: 3, man: 5 }, tl: "yellow", nlp: 74,
+    sourceUrl: "univ-spn.fr/about", scrapedAt: "2025-06-01",
+    decision: { flag: "modified", label: "✎ Modified", style: "background:#faeeda;color:#855010;border:0.5px solid #f0c070" },
+    fields: [
+      { label: "Institution name", orig: "Université Sorbonne Paris Nord", scr: "Université Sorbonne Paris Nord", score: 97, cls: "match" },
+      { label: "Website", orig: "https://www.univ-spn.fr", scr: "https://www.univ-spn.fr", score: 100, cls: "match" },
+      { label: "Address", orig: "99 av. Jean-Baptiste Clément…", scr: "99 Avenue Jean-Baptiste Clément…", score: 68, cls: "partial" },
+      { label: "Description", orig: "Multidisciplinary public university…", scr: "A public research university north of Paris…", score: 42, cls: "mismatch" }
+    ],
+    editText: ""
+  },
+  divisions: {
+    total: 54, cursor: 7, stats: { ok: 9, mod: 5, man: 4 }, tl: "green", nlp: 88,
+    sourceUrl: "tu.berlin/…", scrapedAt: "2025-05-28", decision: null,
+    fields: [
+      { label: "Division name", orig: "Department of Mathematics", scr: "Department of Mathematics", score: 100, cls: "match" },
+      { label: "Parent institution", orig: "Technische Universität Berlin", scr: "TU Berlin", score: 78, cls: "partial" },
+      { label: "Head of division", orig: "Prof. Dr. Ingrid Bauer", scr: "Prof. Ingrid Bauer", score: 85, cls: "match" },
+      { label: "Focus area", orig: "Pure and applied mathematics…", scr: "Applied and pure mathematics…", score: 83, cls: "match" }
+    ],
+    editText: ""
+  },
+  contacts: {
+    total: 91, cursor: 22, stats: { ok: 14, mod: 8, man: 5 }, tl: "red", nlp: 38,
+    sourceUrl: "uva.nl/…", scrapedAt: "2025-06-03",
+    decision: { flag: "needs_manual", label: "⚑ Needs manual", style: "background:#fcebeb;color:#a32d2d;border:0.5px solid #f09595" },
+    fields: [
+      { label: "Full name", orig: "Dr. Johan de Vries", scr: "Johan de Vries", score: 82, cls: "match" },
+      { label: "Title", orig: "Associate Professor", scr: "Assoc. Prof.", score: 71, cls: "partial" },
+      { label: "Email", orig: "j.devries@uva.nl", scr: "j.vries@uva.nl", score: 31, cls: "mismatch" },
+      { label: "Phone", orig: "+31 20 525 8000", scr: "+31 20 525 7142", score: 44, cls: "mismatch" },
+      { label: "Department", orig: "Faculty of Social and Behavioural Sciences", scr: "Social Sciences Department", score: 62, cls: "partial" }
+    ],
+    editText: ""
+  }
+};
+
+let activeKey = "institutions";
+let serverData = null;
+let domains = [];
+
+function showBanner(msg, isErr) {
+  const el = document.getElementById("api-banner");
+  if (!msg) { el.style.display = "none"; return; }
+  el.textContent = msg;
+  el.className = "api-banner" + (isErr ? " err" : "");
+  el.style.display = "block";
+}
+
+function getActiveSlice() {
+  if (!serverData || !serverData.ui) return DEMO_DATA[activeKey];
+  const ui = serverData.ui;
+  if (activeKey === "institutions") return ui.institutions;
+  const block = activeKey === "divisions" ? ui.divisions : ui.contacts;
+  const i = Math.max(0, Math.min(block.items.length - 1, block.cursor - 1));
+  const item = block.items[i] || { fields: [], editText: "" };
+  return { ...block, fields: item.fields, editText: item.editText };
+}
+
+function updateTabCounts() {
+  const tabs = document.querySelectorAll(".tab-count");
+  if (!serverData || !serverData.ui) {
+    tabs[0].textContent = "38"; tabs[1].textContent = "54"; tabs[2].textContent = "91";
+    return;
+  }
+  const u = serverData.ui;
+  tabs[0].textContent = String(u.institutions.total || 1);
+  tabs[1].textContent = String(u.divisions.total || 0);
+  tabs[2].textContent = String(u.contacts.total || 0);
+}
+
+function escHtml(s) {
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function render() {
+  const d = getActiveSlice();
+  document.getElementById("cnt-ok").textContent  = d.stats.ok;
+  document.getElementById("cnt-mod").textContent = d.stats.mod;
+  document.getElementById("cnt-man").textContent = d.stats.man;
+  const pct = d.total > 0 ? Math.round(d.cursor / d.total * 100) : 0;
+  document.getElementById("progress-fill").style.width = pct + "%";
+  document.getElementById("pct-label").textContent = pct + "% this tab";
+  if (serverData) {
+    const di = serverData.domain_index + 1, dc = serverData.domain_count || 1;
+    document.getElementById("badge-record").textContent = "Domain " + di + "/" + dc;
+  } else {
+    document.getElementById("badge-record").textContent = "Record " + d.cursor + " of " + d.total;
+  }
+  document.getElementById("nav-pos").textContent = d.cursor + " / " + d.total;
+  const origEl = document.getElementById("orig-fields");
+  const scrEl  = document.getElementById("scr-fields");
+  origEl.innerHTML = scrEl.innerHTML = "";
+  (d.fields || []).forEach(f => {
+    const ob = document.createElement("div");
+    ob.className = "field-block";
+    ob.innerHTML = "<div class=\"field-key\">" + escHtml(f.label) + "</div><div class=\"field-val\">" + escHtml(f.orig) + "</div>";
+    origEl.appendChild(ob);
+    const sb = document.createElement("div");
+    sb.className = "field-block " + f.cls;
+    const scoreCls = f.score >= 80 ? "score-high" : f.score >= 50 ? "score-mid" : "score-low";
+    sb.innerHTML = "<div class=\"field-key\">" + escHtml(f.label) + "<span class=\"field-score " + scoreCls + "\">" + f.score + "%</span></div><div class=\"field-val\">" + escHtml(f.scr) + "</div>";
+    scrEl.appendChild(sb);
+  });
+  const chip = document.getElementById("decision-chip");
+  if (d.decision) {
+    chip.style.display = "inline-block";
+    chip.textContent = d.decision.label;
+    chip.style.cssText = "display:inline-block;font-size:11px;font-weight:500;padding:2px 9px;border-radius:999px;" + d.decision.style;
+  } else { chip.style.display = "none"; }
+  document.getElementById("traffic-light").className = "traffic-light tl-" + d.tl;
+  document.getElementById("traffic-label").textContent = { green: "Good match", yellow: "Partial match", red: "Poor match" }[d.tl];
+  const bar = document.getElementById("nlp-bar");
+  bar.style.width = d.nlp + "%";
+  bar.style.background = d.nlp >= 80 ? "#1D9E75" : d.nlp >= 50 ? "#EF9F27" : "#E24B4A";
+  document.getElementById("nlp-score").textContent = d.nlp + "%";
+  const src = document.getElementById("source-url");
+  src.textContent = d.sourceUrl || "—";
+  src.href = d.sourceUrl && String(d.sourceUrl).startsWith("http") ? d.sourceUrl : "#";
+  document.getElementById("scraped-at").textContent = d.scrapedAt;
+  document.getElementById("edit-box").value = d.editText || "";
+}
+
+async function loadDomainsAndReview() {
+  try {
+    const dr = await fetch(API_BASE + "/api/domains");
+    if (!dr.ok) throw new Error("GET /api/domains " + dr.status);
+    const dj = await dr.json();
+    domains = dj.domains || [];
+    const sel = document.getElementById("domain-sel");
+    sel.innerHTML = "";
+    domains.forEach(dom => {
+      const o = document.createElement("option");
+      o.value = dom; o.textContent = dom;
+      sel.appendChild(o);
+    });
+    const params = new URLSearchParams(location.search);
+    let want = params.get("domain");
+    if (!want && domains.length) want = domains[0];
+    if (want && domains.includes(want)) sel.value = want;
+    if (!domains.length) {
+      showBanner("No profiles in output/structured/*.json — showing demo data.", true);
+      serverData = null;
+      updateTabCounts();
+      render();
+      return;
+    }
+    sel.onchange = function() { loadReview(sel.value); };
+    await loadReview(sel.value || domains[0]);
+  } catch (e) {
+    showBanner("API unavailable (open via uvicorn). Demo data. " + e.message, true);
+    serverData = null;
+    updateTabCounts();
+    render();
+  }
+}
+
+async function loadReview(domain) {
+  if (!domain) return;
+  try {
+    const r = await fetch(API_BASE + "/api/review/" + encodeURIComponent(domain));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const det = j.detail;
+      throw new Error(typeof det === "string" ? det : JSON.stringify(det));
+    }
+    serverData = j;
+    let extra = serverData.has_ground_truth ? "WHED ground truth loaded." : "No WHED row — comparing scraped to empty baseline.";
+    if (serverData.db_available === false) extra += " (DB offline: configure .env + MySQL)";
+    showBanner(extra, !serverData.has_ground_truth);
+    updateTabCounts();
+    render();
+  } catch (e) {
+    showBanner("Review load failed: " + e.message, true);
+  }
+}
+
+function switchTable(key, btn) {
+  activeKey = key;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  btn.classList.add("active");
+  render();
+}
+
+function navigate(dir) {
+  if (!serverData || !serverData.ui) {
+    const d = DEMO_DATA[activeKey];
+    d.cursor = Math.max(1, Math.min(d.total, d.cursor + dir));
+    render();
+    return;
+  }
+  if (activeKey === "institutions") {
+    const n = serverData.domain_count || 1;
+    let idx = (serverData.domain_index + dir) % n;
+    if (idx < 0) idx += n;
+    const dom = domains[idx];
+    if (dom) {
+      document.getElementById("domain-sel").value = dom;
+      loadReview(dom);
+    }
+    return;
+  }
+  const block = activeKey === "divisions" ? serverData.ui.divisions : serverData.ui.contacts;
+  block.cursor = Math.max(1, Math.min(block.total, block.cursor + dir));
+  render();
+}
+
+async function submitStage(action) {
+  if (!serverData) { alert("Load a domain from the API first."); return; }
+  const domain = serverData.domain;
+  const notes = document.getElementById("edit-box").value;
+  let profile = JSON.parse(JSON.stringify(serverData.extracted));
+  if (action === "modify" && activeKey === "institutions") profile.extraction_notes = notes;
+  const body = { profile: profile, review_action: action, notes: notes };
+  try {
+    const r = await fetch(API_BASE + "/api/stage/" + encodeURIComponent(domain), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const det = j.detail;
+      throw new Error(typeof det === "string" ? det : JSON.stringify(det));
+    }
+    alert("Saved to " + (j.saved_to || "output/stages/"));
+  } catch (e) {
+    alert("Save failed: " + e.message);
+  }
+}
+
+document.getElementById("btn-accept").addEventListener("click", function() { submitStage("accept"); });
+document.getElementById("btn-modify").addEventListener("click", function() { submitStage("modify"); });
+document.getElementById("btn-reject").addEventListener("click", function() { submitStage("reject"); });
+
+(function init() {
+  fetch(API_BASE + "/api/health")
+    .then(function(h) {
+      if (h && h.ok) return loadDomainsAndReview();
+      throw new Error("no api");
+    })
+    .catch(function() {
+      showBanner("Demo mode: uv run uvicorn review_api.app:app --reload --host 127.0.0.1 --port 8765", true);
+      serverData = null;
+      updateTabCounts();
+      render();
+    });
+})();
+</script>
+</body>
+</html>

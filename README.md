@@ -52,7 +52,6 @@ mcp-webscraper/
 ├── schema.py               # SchoolProfile, EXTRACTION_TEMPLATE, FIELD_URL_HINTS
 ├── db_reference.py         # WHED DB — picklists, reference examples, ground truth
 ├── run_scraper.py          # Standalone CLI — schema-driven crawl, PDF extraction
-├── run_comparison.py       # 3-way comparison: Baseline vs MCP vs Ground Truth
 ├── docs/
 │   ├── USAGE_GUIDE.md      # Architecture, flow, outputs, comparison
 │   ├── PROJECT_ITERATIONS.md
@@ -61,9 +60,8 @@ mcp-webscraper/
     ├── pages/              # Per-page cache from crawl
     ├── sites/              # Combined site crawl
     ├── structured/         # MCP extraction output
-    ├── structured_baseline/# Legacy extractions (for comparison)
     ├── ground_truth/       # WHED DB exports
-    └── comparisons/
+    └── stages/             # Human review staging
 ```
 
 ---
@@ -119,7 +117,8 @@ Add to `.cursor/mcp.json`:
 | `extract_data` | Extract by CSS selector |
 | `extract_first` | First matching element |
 | `batch_scrape` | Multiple URLs |
-| `crawl_website` | Discover and crawl site |
+| `crawl_website` | Discover and crawl site (`schema_filter=True` to skip irrelevant pages) |
+| `extract_pdf_text` | Download a PDF and extract its text content |
 | `get_extraction_schema` | WHED field template (REQUIRED only) |
 | `get_db_context` | Picklists + reference example for domain |
 | `validate_profile` | Pydantic + DB picklist validation |
@@ -144,15 +143,6 @@ uv run python run_scraper.py
 - Uses `schema.FIELD_URL_HINTS` to follow only relevant URLs
 - Extracts text from PDFs via `pdfplumber`
 
-### Comparison
-
-```bash
-uv run python run_comparison.py                  # All domains
-uv run python run_comparison.py www.ampa.edu.au  # Single domain
-```
-
-Compares **Baseline** (legacy) vs **MCP** vs **Ground Truth** (WHED DB). See `docs/USAGE_GUIDE.md` for interpretation.
-
 ---
 
 ## Schema & DB Grounding
@@ -167,7 +157,7 @@ Compares **Baseline** (legacy) vs **MCP** vs **Ground Truth** (WHED DB). See `do
 
 | Doc | Content |
 |-----|---------|
-| [USAGE_GUIDE.md](docs/USAGE_GUIDE.md) | Architecture, flow, outputs, comparison interpretation |
+| [USAGE_GUIDE.md](docs/USAGE_GUIDE.md) | Architecture, flow, and outputs |
 | [PROJECT_ITERATIONS.md](docs/PROJECT_ITERATIONS.md) | Evolution from Ollama to MCP-native |
 | [MCP_VS_N8N_COMPARISON.md](docs/MCP_VS_N8N_COMPARISON.md) | KPI comparison with N8N + Firecrawl |
 

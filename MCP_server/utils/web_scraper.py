@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 import traceback
-from typing import Dict, Any
+from typing import Callable, Dict, Any, Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -21,6 +21,12 @@ from MCP_server.models.scraping_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+_SKIP_EXTENSIONS = frozenset([
+    ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
+    ".zip", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".mp3", ".mp4", ".avi", ".mov",
+])
 
 
 class WebScraper:
@@ -306,7 +312,8 @@ class WebScraper:
         max_pages: int = 50,
         max_depth: int = 3,
         same_domain_only: bool = True,
-        delay_seconds: float = 0.5
+        delay_seconds: float = 0.5,
+        url_filter: Optional[Callable[[str], bool]] = None,
     ) -> Dict[str, Any]:
         """
         Crawl a website starting from a URL, discovering its structure.
@@ -318,6 +325,8 @@ class WebScraper:
             max_depth: Maximum depth from start URL
             same_domain_only: Stay within the same domain
             delay_seconds: Delay between requests
+            url_filter: Optional callable that returns True if a URL should be
+                        crawled. When None, all same-domain URLs are followed.
         
         Returns:
             Site structure, statistics, and discovered pages
@@ -404,6 +413,15 @@ class WebScraper:
                     
                     # Check domain restriction
                     if same_domain_only and parsed.netloc != start_domain:
+                        continue
+
+                    # Skip binary file extensions
+                    path_lower = parsed.path.lower()
+                    if any(path_lower.endswith(ext) for ext in _SKIP_EXTENSIONS):
+                        continue
+
+                    # Apply optional URL filter (e.g. schema-driven)
+                    if url_filter and not url_filter(clean_url):
                         continue
                     
                     discovered_links.append(clean_url)
