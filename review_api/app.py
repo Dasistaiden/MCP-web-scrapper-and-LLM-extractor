@@ -10,6 +10,8 @@ API docs: http://127.0.0.1:8765/docs
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -17,6 +19,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from review_api.compare_ui import (
     ROOT,
@@ -27,7 +31,22 @@ from review_api.compare_ui import (
     load_ground_truth_file,
 )
 
-app = FastAPI(title="WHED Data Review", version="0.1.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    try:
+        from db_reference import ensure_staging_tables, is_db_available
+
+        if is_db_available():
+            ensure_staging_tables()
+            logger.info("DB available — staging tables ready")
+        else:
+            logger.info("DB offline — staging will only write JSON files")
+    except Exception as exc:
+        logger.warning("Staging table init skipped: %s", exc)
+    yield
+
+
+app = FastAPI(title="WHED Data Review", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -120,7 +139,17 @@ def save_stage(domain: str, body: StagePayload) -> dict[str, Any]:
     }
     path = STAGES_DIR / f"{domain}.json"
     path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"success": True, "saved_to": str(path)}
+
+    db_ok = False
+    if body.review_action in ("accept", "modify", "reject"):
+        try:
+            from db_reference import upsert_staging
+
+            db_ok = upsert_staging(domain, body.review_action, body.profile, body.notes)
+        except Exception:
+            pass
+
+    return {"success": True, "saved_to": str(path), "db_staged": db_ok}
 
 
 @app.get("/")

@@ -38,15 +38,19 @@ def _format_val(v: Any) -> str:
 
 def _similarity_score(orig: Any, scr: Any) -> tuple[int, str]:
     """
-    Return (0-100 score, css class: match | partial | mismatch).
-    If both empty, treat as match. If one empty, low score.
+    Return (score, css class).
+
+    Classes: match | partial | mismatch | new | missing.
+    Score -1 is a sentinel for "new" (excluded from averages).
     """
     o = _format_val(orig)
     s = _format_val(scr)
     if o == "—" and s == "—":
         return 100, "match"
-    if o == "—" or s == "—":
-        return 35, "mismatch"
+    if o == "—" and s != "—":
+        return -1, "new"
+    if o != "—" and s == "—":
+        return 20, "missing"
     lo, ls = o.strip().lower(), s.strip().lower()
     if lo == ls:
         return 100, "match"
@@ -72,7 +76,7 @@ def _traffic_from_nlp(nlp: int) -> str:
 def _avg_scores(rows: list[dict]) -> int:
     if not rows:
         return 0
-    sc = [r["score"] for r in rows if r.get("score") is not None]
+    sc = [r["score"] for r in rows if r.get("score") is not None and r["score"] >= 0]
     return int(round(sum(sc) / len(sc))) if sc else 0
 
 

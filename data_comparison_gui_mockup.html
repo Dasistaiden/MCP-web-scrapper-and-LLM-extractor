@@ -76,6 +76,8 @@
   .field-block.match    { border-color: #a0c96a; background: #eaf3de; }
   .field-block.partial  { border-color: #f0c070; background: #faeeda; }
   .field-block.mismatch { border-color: #f09595; background: #fcebeb; }
+  .field-block.new      { border-color: #7ab3e0; background: #e8f2fb; }
+  .field-block.missing  { border-color: #d4a0d4; background: #f5eaf5; }
   .field-key {
     font-size: 11px; color: #9a9994; margin-bottom: 4px;
     display: flex; align-items: center; justify-content: space-between;
@@ -85,6 +87,8 @@
   .score-high { background: #eaf3de; color: #3B6D11; }
   .score-mid  { background: #faeeda; color: #855010; }
   .score-low  { background: #fcebeb; color: #a32d2d; }
+  .score-new  { background: #e8f2fb; color: #2a6fa8; }
+  .score-miss { background: #f5eaf5; color: #8a3d8a; }
 
   /* Scores bar */
   .scores-bar {
@@ -189,7 +193,7 @@
 <!-- SCORES BAR -->
 <div class="scores-bar">
   <div class="score-item">
-    <span class="score-label">Ollama semantic</span>
+    <span class="score-label">Overall match</span>
     <div class="traffic-light" id="traffic-light"></div>
     <span class="score-text" id="traffic-label">—</span>
   </div>
@@ -334,8 +338,16 @@ function render() {
     origEl.appendChild(ob);
     const sb = document.createElement("div");
     sb.className = "field-block " + f.cls;
-    const scoreCls = f.score >= 80 ? "score-high" : f.score >= 50 ? "score-mid" : "score-low";
-    sb.innerHTML = "<div class=\"field-key\">" + escHtml(f.label) + "<span class=\"field-score " + scoreCls + "\">" + f.score + "%</span></div><div class=\"field-val\">" + escHtml(f.scr) + "</div>";
+    var scoreBadge;
+    if (f.score < 0) {
+      scoreBadge = "<span class=\"field-score score-new\">NEW</span>";
+    } else if (f.cls === "missing") {
+      scoreBadge = "<span class=\"field-score score-miss\">MISS</span>";
+    } else {
+      var scoreCls = f.score >= 80 ? "score-high" : f.score >= 50 ? "score-mid" : "score-low";
+      scoreBadge = "<span class=\"field-score " + scoreCls + "\">" + f.score + "%</span>";
+    }
+    sb.innerHTML = "<div class=\"field-key\">" + escHtml(f.label) + scoreBadge + "</div><div class=\"field-val\">" + escHtml(f.scr) + "</div>";
     scrEl.appendChild(sb);
   });
   const chip = document.getElementById("decision-chip");

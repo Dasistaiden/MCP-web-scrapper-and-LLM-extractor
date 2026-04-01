@@ -599,3 +599,241 @@ def _export_org(conn, org_id: int) -> Optional[dict]:
 
     conn.close()
     return profile
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Structured staging tables — reviewed profiles ready for import into WHED
+# ─────────────────────────────────────────────────────────────────────────────
+
+_STAGING_DDL = [
+    """\
+CREATE TABLE IF NOT EXISTS staging_org (
+    id                    INT AUTO_INCREMENT PRIMARY KEY,
+    domain                VARCHAR(255) NOT NULL UNIQUE,
+    source_url            VARCHAR(500),
+    extracted_at          VARCHAR(50),
+    -- org_basics (mirrors whed_org)
+    OrgName               VARCHAR(160),
+    InstNameEnglish       VARCHAR(160),
+    is_branch             TINYINT(1) DEFAULT 0,
+    iCreated              VARCHAR(50),
+    InstClassCode         VARCHAR(2),
+    inst_type_national    VARCHAR(255),
+    InstFundingTypeCode   VARCHAR(2),
+    -- contact (mirrors whed_org address block)
+    City                  VARCHAR(60),
+    Street                TEXT,
+    Province              VARCHAR(60),
+    PostCode              VARCHAR(40),
+    WWW                   TEXT,
+    EMail                 VARCHAR(100),
+    Tel                   VARCHAR(60),
+    -- meta
+    extraction_notes      TEXT,
+    review_action         ENUM('pending','accept','modify','reject') NOT NULL DEFAULT 'pending',
+    notes                 TEXT,
+    reviewed_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+""",
+    """\
+CREATE TABLE IF NOT EXISTS staging_contacts (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    staging_org_id    INT NOT NULL,
+    position_order    INT DEFAULT 0,
+    Surname           VARCHAR(60),
+    FirstName         VARCHAR(60),
+    JobTitle          VARCHAR(100),
+    job_function      VARCHAR(100),
+    ContactEMail      VARCHAR(100),
+    Sex               VARCHAR(1),
+    FOREIGN KEY (staging_org_id) REFERENCES staging_org(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+""",
+    """\
+CREATE TABLE IF NOT EXISTS staging_divisions (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    staging_org_id    INT NOT NULL,
+    iDivision         VARCHAR(255),
+    division_type     VARCHAR(100),
+    fields_of_study   TEXT,
+    FOREIGN KEY (staging_org_id) REFERENCES staging_org(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+""",
+    """\
+CREATE TABLE IF NOT EXISTS staging_degrees (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    staging_org_id    INT NOT NULL,
+    iDegree           VARCHAR(255),
+    degree_level      VARCHAR(100),
+    FOREIGN KEY (staging_org_id) REFERENCES staging_org(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+""",
+    """\
+CREATE TABLE IF NOT EXISTS staging_review_log (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    domain            VARCHAR(255) NOT NULL,
+    review_action     ENUM('pending','accept','modify','reject') NOT NULL,
+    notes             TEXT,
+    reviewed_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+""",
+    """\
+CREATE TABLE IF NOT EXISTS staging_comparison (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    staging_org_id  INT NOT NULL,
+    whed_org_id     MEDIUMINT UNSIGNED,
+    field_name      VARCHAR(80) NOT NULL,
+    staged_value    TEXT,
+    whed_value      TEXT,
+    similarity      FLOAT,
+    match_method    ENUM('cosine','exact') DEFAULT 'cosine',
+    compared_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (staging_org_id) REFERENCES staging_org(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+""",
+]
+
+
+def ensure_staging_tables() -> bool:
+    """Create all staging tables if they do not exist. Returns True on success."""
+    try:
+        conn = _get_connection()
+        with conn.cursor() as c:
+            for ddl in _STAGING_DDL:
+                c.execute(ddl)
+        conn.commit()
+        conn.close()
+        logger.info("All staging tables ready")
+        return True
+    except Exception as exc:
+        logger.warning("Could not create staging tables: %s", exc)
+        return False
+
+
+def upsert_staging(
+    domain: str,
+    review_action: str,
+    profile: dict,
+    notes: Optional[str] = None,
+) -> bool:
+    """
+    Decompose a SchoolProfile dict into structured staging rows.
+    Upserts staging_org, replaces child rows, and appends a review log entry.
+    """
+    try:
+        conn = _get_connection()
+        c = conn.cursor()
+
+        ob = profile.get("org_basics") or {}
+        ct = profile.get("contact") or {}
+
+        c.execute(
+            "INSERT INTO staging_org "
+            "(domain, source_url, extracted_at, "
+            " OrgName, InstNameEnglish, is_branch, iCreated, "
+            " InstClassCode, inst_type_national, InstFundingTypeCode, "
+            " City, Street, Province, PostCode, WWW, EMail, Tel, "
+            " extraction_notes, review_action, notes) "
+            "VALUES (%s,%s,%s, %s,%s,%s,%s, %s,%s,%s, %s,%s,%s,%s,%s,%s,%s, %s,%s,%s) "
+            "ON DUPLICATE KEY UPDATE "
+            " source_url=VALUES(source_url), extracted_at=VALUES(extracted_at), "
+            " OrgName=VALUES(OrgName), InstNameEnglish=VALUES(InstNameEnglish), "
+            " is_branch=VALUES(is_branch), iCreated=VALUES(iCreated), "
+            " InstClassCode=VALUES(InstClassCode), inst_type_national=VALUES(inst_type_national), "
+            " InstFundingTypeCode=VALUES(InstFundingTypeCode), "
+            " City=VALUES(City), Street=VALUES(Street), Province=VALUES(Province), "
+            " PostCode=VALUES(PostCode), WWW=VALUES(WWW), EMail=VALUES(EMail), Tel=VALUES(Tel), "
+            " extraction_notes=VALUES(extraction_notes), "
+            " review_action=VALUES(review_action), notes=VALUES(notes), "
+            " reviewed_at=NOW()",
+            (
+                domain,
+                profile.get("source_url"),
+                profile.get("extracted_at"),
+                ob.get("name_native"),
+                ob.get("name_english"),
+                1 if ob.get("is_branch") else 0,
+                str(ob.get("year_founded", "")) or None,
+                ob.get("institution_type_international"),
+                ob.get("institution_type_national"),
+                ob.get("funding_type"),
+                ct.get("city"),
+                ct.get("street"),
+                ct.get("province"),
+                ct.get("post_code"),
+                ct.get("website") or profile.get("source_url"),
+                ct.get("email"),
+                ct.get("phone"),
+                profile.get("extraction_notes"),
+                review_action,
+                notes,
+            ),
+        )
+
+        c.execute(
+            "SELECT id FROM staging_org WHERE domain=%s", (domain,)
+        )
+        org_row = c.fetchone()
+        org_id = org_row["id"]
+
+        # Replace child rows (delete + re-insert)
+        for child_table in ("staging_contacts", "staging_divisions", "staging_degrees"):
+            c.execute(f"DELETE FROM {child_table} WHERE staging_org_id=%s", (org_id,))
+
+        # Contacts
+        for idx, kc in enumerate(profile.get("key_contacts") or []):
+            c.execute(
+                "INSERT INTO staging_contacts "
+                "(staging_org_id, position_order, Surname, FirstName, "
+                " JobTitle, job_function, ContactEMail, Sex) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    org_id, idx,
+                    kc.get("surname"),
+                    kc.get("first_name"),
+                    kc.get("job_title"),
+                    kc.get("job_function"),
+                    kc.get("email"),
+                    kc.get("gender"),
+                ),
+            )
+
+        # Divisions
+        for dv in profile.get("divisions") or []:
+            fos = dv.get("fields_of_study") or []
+            fos_str = ", ".join(fos) if isinstance(fos, list) else str(fos)
+            c.execute(
+                "INSERT INTO staging_divisions "
+                "(staging_org_id, iDivision, division_type, fields_of_study) "
+                "VALUES (%s,%s,%s,%s)",
+                (org_id, dv.get("name"), dv.get("division_type"), fos_str),
+            )
+
+        # Degrees
+        for dg in profile.get("degree_programs") or []:
+            c.execute(
+                "INSERT INTO staging_degrees "
+                "(staging_org_id, iDegree, degree_level) "
+                "VALUES (%s,%s,%s)",
+                (org_id, dg.get("name"), dg.get("level")),
+            )
+
+        # Audit log (always append)
+        c.execute(
+            "INSERT INTO staging_review_log (domain, review_action, notes) "
+            "VALUES (%s,%s,%s)",
+            (domain, review_action, notes),
+        )
+
+        conn.commit()
+        conn.close()
+        logger.info("Staged %s (%s) — org + %d contacts + %d divisions + %d degrees",
+                     domain, review_action,
+                     len(profile.get("key_contacts") or []),
+                     len(profile.get("divisions") or []),
+                     len(profile.get("degree_programs") or []))
+        return True
+    except Exception as exc:
+        logger.warning("DB staging failed for %s: %s", domain, exc)
+        return False

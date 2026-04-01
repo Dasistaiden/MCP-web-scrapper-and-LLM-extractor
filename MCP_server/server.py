@@ -730,9 +730,28 @@ def save_profile(
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     logger.info(f"Profile saved: {out_path}")
-    return {
+
+    db_staged = False
+    comparison = None
+    try:
+        from db_reference import upsert_staging, is_db_available
+        if is_db_available():
+            db_staged = upsert_staging(
+                domain=domain,
+                review_action="pending",
+                profile=data,
+                notes="Auto-staged on save_profile",
+            )
+            if db_staged:
+                from embedding_compare import compare_staged_vs_whed
+                comparison = compare_staged_vs_whed(domain)
+    except Exception as exc:
+        logger.warning("DB staging/comparison skipped: %s", exc)
+
+    result = {
         "success": True,
         "saved_to": str(out_path),
+        "db_staged": db_staged,
         "domain": domain,
         "fields_count": {
             "org_basics": len(data.get("org_basics", {})),
@@ -741,6 +760,13 @@ def save_profile(
             "degree_programs": len(data.get("degree_programs", [])),
         },
     }
+    if comparison:
+        result["comparison"] = {
+            "whed_match": comparison.get("whed_match", False),
+            "avg_similarity": comparison.get("avg_similarity"),
+            "field_count": comparison.get("field_count"),
+        }
+    return result
 
 
 # Resource for help/documentation
@@ -764,7 +790,7 @@ def get_help() -> str:
     - get_extraction_schema()      Get the WHED field template (what to extract)
     - get_db_context(domain)       Get allowed values & reference example from WHED DB
     - validate_profile(json)       Validate extraction against schema + DB
-    - save_profile(domain, json)   Save validated profile to disk
+    - save_profile(domain, json)   Save validated profile to disk + auto-stage to SQL
 
     RECOMMENDED WORKFLOW:
     1. crawl_website(url, schema_filter=True)  -> discover relevant pages
@@ -780,8 +806,19 @@ def get_help() -> str:
 
 if __name__ == "__main__":
     logger.info("🚀 Starting Web Scraping MCP Server")
+
+    try:
+        from db_reference import ensure_staging_tables, is_db_available
+        if is_db_available():
+            ensure_staging_tables()
+            logger.info("DB available — staging tables ready")
+        else:
+            logger.info("DB offline — staging will only write JSON files")
+    except Exception as exc:
+        logger.warning("Staging table init skipped: %s", exc)
+
     logger.info("Server ready for connections")
-    
+
     try:
         mcp.run()
     except KeyboardInterrupt:
